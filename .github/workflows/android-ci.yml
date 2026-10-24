@@ -52,13 +52,53 @@ jobs:
         run: |
           node --check assets/web/app.js
           ! grep -Eq 'SUPABASE_ANON_KEY|supabaseClient\.from|rzp_live_|jyotidr\.19822005-1@oksbi|919235551713|localStorage\.(getItem|setItem)\("khc_saved_cases"' assets/web/app.js
-      - name: Build debug APK
-        run: flutter build apk --debug
-      - name: Upload debug APK (not for Play upload)
+      - name: Build doctor and admin APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          # Doctor app: standalone package ID and doctor interface.
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          gradle = Path('android/app/build.gradle.kts')
+          text = gradle.read_text()
+          text = re.sub(r'applicationId = "[^"]+"', 'applicationId = "com.classicai.mobile"', text, count=1)
+          gradle.write_text(text)
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          text = re.sub(r'android:label="[^"]+"', 'android:label="ClassicalAI Doctor"', manifest.read_text(), count=1)
+          manifest.write_text(text)
+          PY
+          flutter build apk --debug --dart-define=APP_KIND=doctor
+          cp build/app/outputs/flutter-apk/app-debug.apk dist/ClassicalAI-Doctor.apk
+
+          # Admin app: distinct package ID so both APKs can be installed together.
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          gradle = Path('android/app/build.gradle.kts')
+          text = gradle.read_text()
+          text = re.sub(r'applicationId = "[^"]+"', 'applicationId = "com.classicai.admin"', text, count=1)
+          gradle.write_text(text)
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          text = re.sub(r'android:label="[^"]+"', 'android:label="ClassicalAI Admin"', manifest.read_text(), count=1)
+          manifest.write_text(text)
+          PY
+          flutter build apk --debug --dart-define=APP_KIND=admin
+          cp build/app/outputs/flutter-apk/app-debug.apk dist/ClassicalAI-Admin.apk
+      - name: Upload doctor APK
         uses: actions/upload-artifact@v4
         with:
-          name: classicai-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          name: classicalai-doctor-apk
+          path: dist/ClassicalAI-Doctor.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload admin APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: classicalai-admin-apk
+          path: dist/ClassicalAI-Admin.apk
           if-no-files-found: error
           retention-days: 14
 
