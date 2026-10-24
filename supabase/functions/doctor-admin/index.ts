@@ -1,12 +1,12 @@
 // Supabase Edge Function: doctor-admin
-// Required function secrets: SUPABASE_URL, SUPABASE_ANON_KEY,
-// SUPABASE_SERVICE_ROLE_KEY, ADMIN_ALLOWED_ORIGIN (exact HTTPS origin).
+// Required function secrets: MEDICAL_AI_PROJECT_URL, MEDICAL_AI_ANON_KEY,
+// MEDICAL_AI_SERVICE_ROLE_KEY, ADMIN_ALLOWED_ORIGIN (exact HTTPS origin).
 // Never place the service-role key in browser code.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 
-const url = Deno.env.get("SUPABASE_URL")!;
-const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const url = Deno.env.get("MEDICAL_AI_PROJECT_URL")!;
+const anonKey = Deno.env.get("MEDICAL_AI_ANON_KEY")!;
+const serviceKey = Deno.env.get("MEDICAL_AI_SERVICE_ROLE_KEY")!;
 const allowedOrigin = Deno.env.get("ADMIN_ALLOWED_ORIGIN")!;
 
 const corsHeaders = {
