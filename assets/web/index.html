@@ -47,11 +47,11 @@
 
         <form id="loginForm" onsubmit="handleLoginSubmit(event)" class="p-5 space-y-3.5">
           <div>
-            <label class="block text-[11px] font-bold uppercase text-slate-600 mb-1">Registration No. *</label>
-            <input id="loginRegNo" type="text" autocomplete="username" placeholder="Doctor registration ID" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-mono uppercase font-bold text-teal-900 focus:outline-none focus:border-teal-600">
+            <label class="block text-[11px] font-bold uppercase text-slate-600 mb-1">Registered Email *</label>
+            <input id="loginRegNo" type="email" autocomplete="username" placeholder="doctor@example.com" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-mono uppercase font-bold text-teal-900 focus:outline-none focus:border-teal-600">
           </div>
           <div>
-            <label class="block text-[11px] font-bold uppercase text-slate-600 mb-1">Access Password / PIN *</label>
+            <label class="block text-[11px] font-bold uppercase text-slate-600 mb-1">Password *</label>
             <input id="loginPin" type="password" autocomplete="current-password" placeholder="••••" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:border-teal-600">
           </div>
           <p id="docAuthError" class="text-red-600 text-xs hidden bg-red-50 p-2 rounded-xl border border-red-200 font-semibold"></p>
@@ -62,7 +62,7 @@
           <button type="button" onclick="enterDemoMode()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold py-2.5 rounded-xl text-xs">
             Open Safe Demo (fictional data only)
           </button>
-          <p class="text-[10px] leading-relaxed text-slate-500">Demo runs locally in this page. Login, cloud sync, patient-case saving and payments remain disabled.</p>
+          <p class="text-[10px] leading-relaxed text-slate-500">Doctor login requires an invited Supabase Auth account linked to an active doctor record. Cloud case saving and payments remain disabled until separately secured and tested.</p>
         </form>
       </div>
     </div>
@@ -666,6 +666,6 @@
 
   </div>
 
-  <script src="app.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0"></script>\n  <script src="supabase-config.js"></script>\n  <script src="app.js" defer></script>
 </body>
 </html>
