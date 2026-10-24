@@ -90,6 +90,7 @@
     ];
 
     let currentDoctor = null;
+    let demoMode = false;
     let sessionCases = []; // Patient data remains in memory only until secure cloud storage is ready.
     let currentStep = 1;
     let selectedRubricsList = [];
@@ -100,6 +101,23 @@
     function handleLoginSubmit(e) {
       if (e) e.preventDefault();
       loginAsDoctor();
+    }
+
+    function enterDemoMode() {
+      demoMode = true;
+      currentDoctor = {
+        doctor_name: "Demo Physician",
+        clinic_name: "ClassicalAI — Safe Demo",
+        reg_no: "DEMO-LOCAL",
+        ai_tokens: 1000,
+        status: "Demo"
+      };
+      sessionCases = [];
+      const banner = document.getElementById("demoBanner");
+      if (banner) banner.classList.remove("hidden");
+      const auth = document.getElementById("authModal");
+      if (auth) auth.classList.add("hidden");
+      launchApp();
     }
 
     function loginAsDoctor() {
@@ -140,7 +158,12 @@
     }
 
     function logoutApp() {
+      currentDoctor = null;
+      demoMode = false;
+      sessionCases = [];
       try { localStorage.removeItem("homoeo_current_doctor"); } catch(e) {}
+      const banner = document.getElementById("demoBanner");
+      if (banner) banner.classList.add("hidden");
       const auth = document.getElementById("authModal");
       if (auth) auth.classList.remove("hidden");
     }
@@ -438,6 +461,10 @@
 
     // AUTOSAVE & CASE ARCHIVING
     function saveCurrentCaseRecord() {
+      if (demoMode) {
+        alert("डेमो मोड में मरीज के केस सेव नहीं होते। कृपया केवल काल्पनिक डेटा इस्तेमाल करें।");
+        return;
+      }
       if (!currentDoctor || !currentDoctor.reg_no) {
         alert("सुरक्षित डॉक्टर लॉगिन उपलब्ध होने तक मरीज का केस सेव नहीं किया जा सकता।");
         return;
