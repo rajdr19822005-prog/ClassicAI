@@ -728,7 +728,7 @@
     } catch(e) {}
 
     // YOUR ACTIVE LIVE RAZORPAY KEY
-    const RAZORPAY_KEY_ID = "rzp_live_bIn9zAJeWUjqOX";
+    const RAZORPAY_KEY_ID = ""; // Set only after backend-verified checkout is implemented.
 
     // MATERIA MEDICA DATABASE WITH SYNTHESIS TREASURE, VES, GNM & EXTENSIVE KEYWORDS
     const materiaMedicaRepo = [
@@ -838,19 +838,14 @@
     }
 
     function launchApp() {
-      const auth = document.getElementById("authModal");
-      if (auth) auth.classList.add("hidden");
-
-      if (!currentDoctor) {
-        currentDoctor = {
-          doctor_name: "Dr. R.K. Singh, MD (Hom.)",
-          clinic_name: "ClassicalAI_ver_3.0",
-          reg_no: "ADMIN-09",
-          whatsapp_no: "919235551713",
-          access_pin: "1801",
-          ai_tokens: 100,
-          status: "Active"
-        };
+      // Never manufacture a privileged doctor session on the client.
+      if (!currentDoctor || !currentDoctor.reg_no) {
+        const err = document.getElementById("docAuthError");
+        if (err) {
+          err.innerText = "सुरक्षित लॉगिन उपलब्ध नहीं है।";
+          err.classList.remove("hidden");
+        }
+        return;
       }
 
       document.getElementById("headerClinic").innerText = currentDoctor.clinic_name || "ClassicalAI_ver_3.0";
