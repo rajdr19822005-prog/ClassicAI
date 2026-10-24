@@ -1,6 +1,9 @@
-// No database client or privileged credentials are embedded in this public app.
-    // Cloud access remains disabled until authenticated per-doctor APIs and RLS policies are deployed.
-    const supabaseClient = null;
+// Public publishable key only. Never place service-role or privileged credentials in browser code.
+    const supabaseClient = (window.supabase && window.CLASSICAI_SUPABASE_URL && window.CLASSICAI_SUPABASE_PUBLISHABLE_KEY)
+      ? window.supabase.createClient(window.CLASSICAI_SUPABASE_URL, window.CLASSICAI_SUPABASE_PUBLISHABLE_KEY, {
+          auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+        })
+      : null;
 
     // YOUR ACTIVE LIVE RAZORPAY KEY
     const RAZORPAY_KEY_ID = ""; // Set only after backend-verified checkout is implemented.
@@ -120,15 +123,73 @@
       launchApp();
     }
 
-    function loginAsDoctor() {
+    async function loginAsDoctor() {
       const err = document.getElementById("docAuthError");
-      if (err) {
-        err.innerText = "सुरक्षित लॉगिन अभी कॉन्फ़िगर नहीं है। मरीजों के डेटा के लिए सर्वर-साइड प्रमाणीकरण सक्षम होने तक इस बिल्ड में लॉगिन बंद है।";
-        err.classList.remove("hidden");
+      const btn = document.getElementById("loginBtn");
+      const email = document.getElementById("loginRegNo")?.value?.trim().toLowerCase();
+      const password = document.getElementById("loginPin")?.value;
+      const showError = (message) => {
+        if (err) { err.innerText = message; err.classList.remove("hidden"); }
+      };
+      if (err) err.classList.add("hidden");
+      if (!supabaseClient) {
+        showError("सुरक्षित लॉगिन कॉन्फ़िगर नहीं है। Supabase publishable configuration जाँचें।");
+        return;
       }
-      // Fail closed: do not accept hard-coded PINs or locally stored doctor records.
-      // Configure Supabase Auth and server-enforced authorization before enabling sign-in.
-      return;
+      if (!email || !password) {
+        showError("कृपया अपना पंजीकृत ईमेल और पासवर्ड दर्ज करें।");
+        return;
+      }
+      if (btn) { btn.disabled = true; btn.innerText = "Verifying…"; }
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error || !data.user) throw new Error("ईमेल या पासवर्ड सही नहीं है।");
+        const { data: doctor, error: profileError } = await supabaseClient
+          .from("doctors")
+          .select("id, doctor_name, clinic_name, reg_no, ai_tokens, status")
+          .eq("auth_user_id", data.user.id)
+          .eq("status", "Active")
+          .maybeSingle();
+        if (profileError || !doctor) {
+          await supabaseClient.auth.signOut();
+          throw new Error("यह Auth खाता किसी Active स्वीकृत डॉक्टर रिकॉर्ड से लिंक नहीं है। ADMIN से लिंक ठीक करवाएँ।");
+        }
+        currentDoctor = doctor;
+        demoMode = false;
+        sessionCases = [];
+        document.getElementById("demoBanner")?.classList.add("hidden");
+        document.getElementById("authModal")?.classList.add("hidden");
+        launchApp();
+      } catch (e) {
+        showError(e.message || "लॉगिन विफल। कृपया दोबारा प्रयास करें।");
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-shield-check"></i> Authorize & Enter App'; }
+      }
+    }
+
+    async function restoreAuthenticatedDoctor() {
+      if (!supabaseClient) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session?.user) return;
+        const { data: doctor, error } = await supabaseClient
+          .from("doctors")
+          .select("id, doctor_name, clinic_name, reg_no, ai_tokens, status")
+          .eq("auth_user_id", session.user.id)
+          .eq("status", "Active")
+          .maybeSingle();
+        if (error || !doctor) {
+          await supabaseClient.auth.signOut();
+          return;
+        }
+        currentDoctor = doctor;
+        demoMode = false;
+        sessionCases = [];
+        document.getElementById("authModal")?.classList.add("hidden");
+        launchApp();
+      } catch (_) {
+        // Keep the authentication gate visible on any profile/session failure.
+      }
     }
 
     function launchApp() {
@@ -157,10 +218,13 @@
       goToStep(1);
     }
 
-    function logoutApp() {
+    async function logoutApp() {
       currentDoctor = null;
       demoMode = false;
       sessionCases = [];
+      if (supabaseClient) {
+        try { await supabaseClient.auth.signOut(); } catch (_) {}
+      }
       try { localStorage.removeItem("homoeo_current_doctor"); } catch(e) {}
       const banner = document.getElementById("demoBanner");
       if (banner) banner.classList.add("hidden");
@@ -803,4 +867,5 @@
       try { localStorage.removeItem("homoeo_current_doctor"); } catch(e) {}
       try { localStorage.removeItem("homoeo_master_doctors_db"); } catch(e) {}
       // Legacy patient archives are not loaded. Existing archives are not auto-deleted to avoid silent data loss.
+      restoreAuthenticatedDoctor();
     });
