@@ -50,7 +50,7 @@
         <form id="loginForm" onsubmit="handleLoginSubmit(event)" class="p-5 space-y-3.5">
           <div>
             <label class="block text-[11px] font-bold uppercase text-slate-600 mb-1">Registration No. *</label>
-            <input id="loginRegNo" type="text" autocomplete="username" placeholder="ADMIN-09" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-mono uppercase font-bold text-teal-900 focus:outline-none focus:border-teal-600">
+            <input id="loginRegNo" type="text" autocomplete="username" placeholder="Doctor registration ID" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-mono uppercase font-bold text-teal-900 focus:outline-none focus:border-teal-600">
           </div>
           <div>
             <label class="block text-[11px] font-bold uppercase text-slate-600 mb-1">Access Password / PIN *</label>
@@ -820,7 +820,7 @@
     let selectedPlan = { tokens: 150, price: 499 };
     let latestTop5Remedies = [];
 
-    // ==================== INSTANT SYNCHRONOUS LOGIN ====================
+    // ==================== SECURE LOGIN GATE ====================
     function handleLoginSubmit(e) {
       if (e) e.preventDefault();
       loginAsDoctor();
