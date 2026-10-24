@@ -34,11 +34,13 @@ jobs:
           s = p.read_text()
           s = s.replace('applicationId = "com.classicai.classicai"', 'applicationId = "com.classicai.mobile"')
           p.write_text(s)
+          import re
           manifest = Path('android/app/src/main/AndroidManifest.xml')
           ms = manifest.read_text()
           if 'android.permission.INTERNET' not in ms:
               ms = ms.replace('    <application', '    <uses-permission android:name="android.permission.INTERNET" />\n    <application', 1)
-              manifest.write_text(ms)
+          ms = re.sub(r'android:label="[^"]+"', 'android:label="ClassicalAI"', ms, count=1)
+          manifest.write_text(ms)
           PY
       - name: Install dependencies
         run: flutter pub get
@@ -115,7 +117,8 @@ jobs:
           ms = manifest.read_text()
           if 'android.permission.INTERNET' not in ms:
               ms = ms.replace('    <application', '    <uses-permission android:name="android.permission.INTERNET" />\n    <application', 1)
-              manifest.write_text(ms)
+          ms = re.sub(r'android:label="[^"]+"', 'android:label="ClassicalAI"', ms, count=1)
+          manifest.write_text(ms)
           PY
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
           cat > android/key.properties <<EOF
