@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f766e">
+  <title>ClassicalAI_ver_3.0</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    body { background-color: #0f172a; display: flex; justify-content: center; min-height: 100vh; margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+    .mobile-app-container { width: 100%; max-width: 480px; min-height: 100vh; background-color: #f8fafc; position: relative; box-shadow: 0 0 25px rgba(0,0,0,0.6); overflow-x: hidden; padding-bottom: 85px; }
+    .chip-active { background-color: #0f766e !important; color: #ffffff !important; border-color: #0f766e !important; font-weight: 600; }
+    .step-active { background-color: #0f766e; color: white; border-color: #0f766e; font-weight: bold; }
+    .selectable-card { transition: all 0.15s ease; cursor: pointer; user-select: none; }
+    .selectable-card.selected { border-color: #0f766e; background-color: #f0fdfa; box-shadow: 0 2px 6px rgba(15, 118, 110, 0.18); }
+    .selectable-card.selected strong { color: #0f766e; }
+    .gnm-card.selected { border-color: #9333ea !important; background-color: #faf5ff !important; box-shadow: 0 2px 6px rgba(147, 51, 234, 0.18) !important; }
+    .gnm-card.selected strong { color: #7e22ce !important; }
+    button { cursor: pointer; }
+    button:active { transform: scale(0.97); }
+
+    @media print {
+      body { background-color: #ffffff !important; }
+      .mobile-app-container { max-width: 100% !important; box-shadow: none !important; padding: 0 !important; }
+      header, nav, #authModal, #rechargeModal, #historyModal, .no-print, section { display: none !important; }
+      #printablePrescriptionArea { display: block !important; padding: 15px 25px !important; font-size: 11px !important; color: #111827 !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-app-container">
+
+    <!-- LOGIN MODAL: ZERO HANG, AUTO-AUTH DEFAULT -->
+    <div id="authModal" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-xs w-full overflow-hidden border-t-4 border-teal-600">
+        <div class="bg-teal-800 text-white p-4 text-center">
+          <div class="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-2 text-xl">
+            <i class="fa-solid fa-brain"></i>
+          </div>
+          <h2 class="text-base font-bold">ClassicalAI_ver_3.0</h2>
+          <p class="text-[10px] text-teal-200">Doctor Authentication Portal</p>
+        </div>
+
+        <form id="loginForm" onsubmit="handleLoginSubmit(event)" class="p-5 space-y-3.5">
+          <div>
+            <label class="block text-[11px] font-bold uppercase text-slate-600 mb-1">Registration No. *</label>
+            <input id="loginRegNo" type="text" autocomplete="username" placeholder="ADMIN-09" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-mono uppercase font-bold text-teal-900 focus:outline-none focus:border-teal-600">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold uppercase text-slate-600 mb-1">Access Password / PIN *</label>
+            <input id="loginPin" type="password" autocomplete="current-password" placeholder="••••" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:border-teal-600">
+          </div>
+          <p id="docAuthError" class="text-red-600 text-xs hidden bg-red-50 p-2 rounded-xl border border-red-200 font-semibold"></p>
+          <button type="submit" id="loginBtn" class="w-full bg-teal-700 hover:bg-teal-800 text-white font-bold py-3 rounded-xl shadow-md text-xs flex items-center justify-center gap-2">
+            <i class="fa-solid fa-shield-check"></i> Authorize & Enter App
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- PATIENT CASE HISTORY MODAL -->
+    <div id="historyModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center z-50 p-4 hidden">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden border-t-4 border-teal-600 max-h-[85vh] flex flex-col">
+        <div class="bg-teal-900 text-white px-4 py-3 flex justify-between items-center shrink-0">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-clock-rotate-left text-teal-300"></i>
+            <h3 class="font-bold text-xs">Patient Case Archives</h3>
+          </div>
+          <button type="button" onclick="closeHistoryModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="p-3 border-b bg-slate-50 shrink-0">
+          <div class="relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+            <input id="historySearchInput" oninput="filterCasesHistory()" type="text" placeholder="मरीज का नाम या फोन नंबर खोजें..." class="w-full pl-8 pr-3 py-1.5 text-xs border rounded-xl focus:outline-none focus:border-teal-600">
+          </div>
+        </div>
+
+        <div id="historyListContainer" class="p-3 space-y-2 overflow-y-auto flex-1"></div>
+      </div>
+    </div>
+
+    <!-- RECHARGE MODAL: RAZORPAY LIVE & UPI ENGINE -->
+    <div id="rechargeModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center z-50 p-4 hidden">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-xs w-full overflow-hidden border-t-4 border-amber-500 max-h-[90vh] overflow-y-auto">
+        <div class="bg-slate-900 text-white px-4 py-3 flex justify-between items-center sticky top-0 z-10">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-coins text-amber-400"></i>
+            <h3 class="font-bold text-xs">AI Token Recharge (Razorpay Live)</h3>
+          </div>
+          <button type="button" onclick="closeRechargeModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="p-4 space-y-3">
+          <div class="bg-gradient-to-r from-teal-800 to-teal-600 text-white p-3 rounded-xl flex justify-between items-center">
+            <div>
+              <p class="text-[10px] uppercase text-teal-200">Current AI Balance</p>
+              <p class="text-xl font-extrabold"><span id="walletModalTokens">100</span> Tokens</p>
+              <p class="text-[10px] text-amber-300 font-mono">Live Gateway: Razorpay</p>
+            </div>
+            <i class="fa-solid fa-shield-halved text-3xl text-amber-300"></i>
+          </div>
+
+          <div class="grid grid-cols-3 gap-1.5 text-center">
+            <button type="button" id="planBtn50" onclick="selectPlan(50, 199)" class="border-2 border-slate-200 rounded-xl p-2 bg-slate-50">
+              <div class="font-extrabold text-teal-800 text-xs">50 Tok</div>
+              <div class="text-[10px] font-bold text-slate-600">₹199</div>
+            </button>
+            <button type="button" id="planBtn150" onclick="selectPlan(150, 499)" class="border-2 border-teal-600 rounded-xl p-2 bg-teal-50/50">
+              <div class="font-extrabold text-teal-800 text-xs">150 Tok</div>
+              <div class="text-[10px] font-bold text-slate-600">₹499</div>
+            </button>
+            <button type="button" id="planBtn400" onclick="selectPlan(400, 999)" class="border-2 border-slate-200 rounded-xl p-2 bg-slate-50">
+              <div class="font-extrabold text-teal-800 text-xs">400 Tok</div>
+              <div class="text-[10px] font-bold text-slate-600">₹999</div>
+            </button>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 p-2.5 rounded-xl space-y-2 text-xs">
+            <p class="font-bold text-amber-900 text-[11px]">Selected: <span id="selectedPackText">150 AI Tokens - ₹499</span></p>
+
+            <button type="button" onclick="payViaRazorpay()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl shadow text-xs flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-credit-card text-sm"></i> Pay ₹<span id="btnPayAmount">499</span> via Razorpay
+            </button>
+
+            <div id="rechargeQrContainer" class="p-2.5 bg-white rounded-xl border border-amber-300 text-center space-y-1.5 shadow-sm">
+              <p class="text-[10px] text-slate-700 font-bold">UPI Apps / QR Scan Alternative:</p>
+              <img id="upiQrImage" src="" alt="UPI QR" class="mx-auto w-32 h-32 rounded-lg border border-slate-200">
+              <p class="text-[9px] text-emerald-700 font-bold">Pre-filled Amount: ₹<span id="qrAmountDisplay">499</span></p>
+            </div>
+
+            <div class="text-center pt-1 border-t border-amber-200">
+              <p class="text-[10px] text-slate-500">Manual VPA: <span class="font-mono font-bold text-slate-700">jyotidr.19822005-1@oksbi</span></p>
+              <button type="button" onclick="copyUpiId()" class="text-teal-700 underline text-[10px] font-bold">Copy UPI ID</button>
+            </div>
+
+            <button type="button" onclick="requestAdminRechargeWA()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-xl shadow text-xs flex items-center justify-center gap-1.5">
+              <i class="fa-brands fa-whatsapp text-sm"></i> Contact Admin on WhatsApp
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOP HEADER -->
+    <header class="bg-teal-800 text-white shadow-md sticky top-0 z-30">
+      <div class="px-3 py-2.5 flex justify-between items-center">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-teal-700 flex items-center justify-center border border-teal-500">
+            <i class="fa-solid fa-staff-snake text-teal-300 text-sm"></i>
+          </div>
+          <div>
+            <h1 class="font-bold text-xs leading-tight truncate max-w-[140px]" id="headerClinic">ClassicalAI_ver_3.0</h1>
+            <p class="text-[10px] text-teal-200 truncate max-w-[140px]" id="headerDoc">Dr. R.K. Singh (ADMIN-09)</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5">
+          <button type="button" onclick="openHistoryModal()" class="bg-teal-700 hover:bg-teal-600 text-teal-100 px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border border-teal-500">
+            <i class="fa-solid fa-clock-rotate-left"></i> History
+          </button>
+          <button type="button" onclick="refreshDoctorBalance()" class="bg-teal-700 text-teal-200 px-2 py-1 rounded-lg text-[10px]" title="Sync Live Tokens">
+            <i id="syncBalIcon" class="fa-solid fa-rotate"></i>
+          </button>
+          <button type="button" onclick="openRechargeModal()" class="bg-amber-500 text-slate-950 font-extrabold px-2.5 py-1 rounded-full text-[11px] flex items-center gap-1 shadow">
+            <i class="fa-solid fa-coins"></i> <span id="headerTokenCount">100</span>
+          </button>
+          <button type="button" onclick="logoutApp()" class="bg-teal-900 text-teal-200 px-2 py-1 rounded-lg text-[10px]">
+            <i class="fa-solid fa-power-off"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- 8-STEP HORIZONTAL SCROLL NAV -->
+      <div class="bg-teal-900/95 border-t border-teal-700 overflow-x-auto whitespace-nowrap scrollbar-none py-1.5 px-2 flex gap-1.5 text-[10px]">
+        <button type="button" onclick="goToStep(1)" id="stepBtn1" class="px-2.5 py-1 rounded step-active">1. रोगी विवरण</button>
+        <button type="button" onclick="goToStep(2)" id="stepBtn2" class="px-2.5 py-1 rounded text-teal-200">2. रोग व माडेलिटी</button>
+        <button type="button" onclick="goToStep(3)" id="stepBtn3" class="px-2.5 py-1 rounded text-teal-200">3. मानस व स्वभाव</button>
+        <button type="button" onclick="goToStep(4)" id="stepBtn4" class="px-2.5 py-1 rounded text-teal-200">4. शारीरिक लक्षण</button>
+        <button type="button" onclick="goToStep(5)" id="stepBtn5" class="px-2.5 py-1 rounded text-purple-300 font-bold">5. GNM Conflicts</button>
+        <button type="button" onclick="goToStep(6)" id="stepBtn6" class="px-2.5 py-1 rounded text-teal-200">6. इतिहास व VES</button>
+        <button type="button" onclick="goToStep(7)" id="stepBtn7" class="px-2.5 py-1 rounded text-amber-300 font-bold">7. Synthesis Analysis</button>
+        <button type="button" onclick="goToStep(8)" id="stepBtn8" class="px-2.5 py-1 rounded text-teal-200">8. 5-Rx पर्चा</button>
+      </div>
+    </header>
+
+    <!-- CLINICAL WORKSPACE -->
+    <main class="px-3 pt-3">
+
+      <!-- STEP 1: PATIENT DETAILS & CHIEF DIAGNOSIS -->
+      <section id="stepView1" class="space-y-3">
+        <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+          <div class="flex justify-between items-center border-b pb-2">
+            <h2 class="font-bold text-xs text-teal-900">Step 1: रोगी विवरण एवं रोग निदान</h2>
+            <span class="text-[9px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded font-bold">Clinical Profile</span>
+          </div>
+
+          <div>
+            <label class="text-[11px] font-bold text-slate-700">Primary Disease Category *</label>
+            <select id="pDiagnosis" onchange="onDiagnosisChange()" class="w-full mt-1 border-2 border-teal-600 rounded-xl px-2.5 py-2 text-xs font-bold text-teal-950 bg-teal-50/40">
+              <option value="Psychiatry">1. मनश्चिकित्सा (Anxiety, Depression, OCD, Panic, Insomnia)</option>
+              <option value="Male_Sexual">2. पुरुषों के गुप्त रोग (PE, ED, Nocturnal Emission, Infertility)</option>
+              <option value="Headache_Migraine">3. सिरदर्द एवं माइग्रेन (Migraine, Vertigo, Tension Headache)</option>
+              <option value="Gastrointestinal">4. पेट एवं पाचन विकार (Acidity, GERD, IBS, Constipation, Piles)</option>
+              <option value="Respiratory">5. श्वसन एवं एलर्जी (Asthma, Rhinitis, Sinusitis, Bronchitis)</option>
+              <option value="Dermatology">6. चर्म रोग (Eczema, Psoriasis, Fungal, Urticaria, Warts)</option>
+              <option value="Gynaecology">7. स्त्री रोग (PCOD, Menses irregularities, Leucorrhoea, Fibroid)</option>
+              <option value="Rheumatology">8. जोड़ एवं वात रोग (Arthritis, Sciatica, Gout, Cervical/Lumbar)</option>
+              <option value="Nephro_Urology">9. गुर्दा एवं मूत्र रोग (Kidney Stones, UTI, Prostate / BPH)</option>
+              <option value="Trichology">10. बाल एवं खोपड़ी विकार (Alopecia, Hair Fall, Dandruff)</option>
+              <option value="Pediatrics">11. बाल रोग (Dentition, Worms, Delayed Milestones, ADHD)</option>
+              <option value="Endocrinology">12. थायरॉइड व मेटाबॉलिक विकार (Hypothyroid, Obesity, Diabetes)</option>
+            </select>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div class="col-span-2">
+              <label class="text-[11px] font-semibold text-slate-600">Patient Full Name *</label>
+              <input id="pName" type="text" placeholder="रोगी का नाम..." class="w-full mt-1 border rounded-xl px-2.5 py-2 text-xs">
+            </div>
+            <div>
+              <label class="text-[11px] font-semibold text-slate-600">Age *</label>
+              <input id="pAge" type="number" placeholder="वर्ष" class="w-full mt-1 border rounded-xl px-2 py-1.5 text-xs">
+            </div>
+            <div>
+              <label class="text-[11px] font-semibold text-slate-600">Gender *</label>
+              <select id="pGender" class="w-full mt-1 border rounded-xl px-2 py-1.5 text-xs bg-white font-semibold">
+                <option value="Male">Male (पुरुष)</option>
+                <option value="Female">Female (महिला)</option>
+                <option value="Child">Child (बच्चा)</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-[11px] font-semibold text-slate-600">WhatsApp No. *</label>
+              <input id="pPhone" type="tel" value="91" class="w-full mt-1 border rounded-xl px-2 py-1.5 text-xs font-mono">
+            </div>
+            <div>
+              <label class="text-[11px] font-semibold text-slate-600">Disease Type *</label>
+              <select id="pDiseaseType" class="w-full mt-1 border rounded-xl px-2 py-1.5 text-xs bg-amber-50 border-amber-300 font-bold">
+                <option value="Chronic">Chronic (जीर्ण रोग)</option>
+                <option value="Acute">Acute (तीव्र रोग)</option>
+                <option value="Sub-Acute">Sub-Acute (उप-तीव्र)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="border-t pt-2">
+            <label class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+              <i class="fa-solid fa-pen-to-square text-teal-700"></i> Other Symptoms / Patient Notes (Page 1)
+            </label>
+            <textarea id="pOtherStep1" rows="2" placeholder="विशेष लक्षण (उदा. जलन, बेचैनी, रात में वृद्धि) जो रिपर्टरी गणना में सीधे जुड़ेंगे..." class="w-full mt-1 border rounded-xl p-2 text-xs bg-slate-50"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 2: DYNAMIC CHIEF COMPLAINT MODALITIES & ONSET -->
+      <section id="stepView2" class="space-y-3 hidden">
+        <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 space-y-3.5">
+          <div class="flex justify-between items-center border-b pb-2">
+            <div>
+              <h2 class="font-bold text-xs text-teal-900">Step 2: Disease-Specific Symptoms & Modalities</h2>
+              <p class="text-[10px] text-teal-700 font-bold" id="currentDiseaseTitle">मनश्चिकित्सा (Psychiatry)</p>
+            </div>
+            <span class="text-[9px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded font-bold">Complete Repertory</span>
+          </div>
+          <div class="space-y-2">
+            <label class="text-[11px] font-bold text-slate-700 block">Select Key Symptoms & Modalities:</label>
+            <div class="grid grid-cols-2 gap-2 text-[11px]" id="dynamicDiseaseCards"></div>
+          </div>
+          <div class="space-y-1.5 border-t pt-2.5">
+            <label class="text-[11px] font-bold text-slate-700 block">Onset, Side & Time Aggravations:</label>
+            <div class="grid grid-cols-2 gap-2 text-[11px]">
+              <div onclick="toggleSelectCard(this, 'Onset: Sudden & Violent')" class="selectable-card border rounded-xl p-2 bg-slate-50">⚡ अचानक शुरुआत (Sudden)</div>
+              <div onclick="toggleSelectCard(this, 'Onset: Gradual & Insidious')" class="selectable-card border rounded-xl p-2 bg-slate-50">🐢 धीरे-धीरे शुरुआत (Gradual)</div>
+              <div onclick="toggleSelectCard(this, 'Side: Right-sided')" class="selectable-card border rounded-xl p-2 bg-slate-50">👉 दाईं ओर (Right-sided)</div>
+              <div onclick="toggleSelectCard(this, 'Side: Left-sided')" class="selectable-card border rounded-xl p-2 bg-slate-50">👈 बाईं ओर (Left-sided)</div>
+              <div onclick="toggleSelectCard(this, 'Aggravation: Morning on waking')" class="selectable-card border rounded-xl p-2 bg-slate-50">🌅 सुबह उठने पर बढ़ना</div>
+              <div onclick="toggleSelectCard(this, 'Aggravation: 4 to 8 PM')" class="selectable-card border rounded-xl p-2 bg-slate-50">🌇 शाम 4 से 8 बजे बढ़ना</div>
+              <div onclick="toggleSelectCard(this, 'Aggravation: Midnight 12-2 AM')" class="selectable-card border rounded-xl p-2 bg-slate-50">🌙 आधी रात को बढ़ना</div>
+              <div onclick="toggleSelectCard(this, 'Aggravation: Night in bed')" class="selectable-card border rounded-xl p-2 bg-slate-50">🛏️ बिस्तर की गर्मी से बढ़ना</div>
+            </div>
+          </div>
+          <div class="border-t pt-2">
+            <label class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+              <i class="fa-solid fa-pen-to-square text-teal-700"></i> Other Symptoms / Location & Sensation (Page 2)
+            </label>
+            <textarea id="pOtherStep2" rows="2" placeholder="दर्द का प्रकार, संवेदना, समय माडेलिटीज..." class="w-full mt-1 border rounded-xl p-2 text-xs bg-slate-50"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 3: MIND & EMOTIONAL KEYNOTES -->
+      <section id="stepView3" class="space-y-3 hidden">
+        <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 space-y-3.5">
+          <div class="flex justify-between items-center border-b pb-2">
+            <h2 class="font-bold text-xs text-teal-900">Step 3: Mind, Sensitivity & Behavioral Keynotes</h2>
+            <span class="text-[9px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded font-bold">Synthesis Treasure</span>
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-[11px] font-bold text-slate-700 block">Way of Entering & Posture:</label>
+            <div class="grid grid-cols-2 gap-2 text-[11px]">
+              <div onclick="toggleSelectCard(this, 'Observation: Timid, Hesitant, Slow')" class="selectable-card border rounded-xl p-2 bg-slate-50">🙇 दब्बू / झिझकता हुआ</div>
+              <div onclick="toggleSelectCard(this, 'Observation: Bold, Fast, Hurried')" class="selectable-card border rounded-xl p-2 bg-slate-50">🏃 उतावला / तेज तर्रार</div>
+              <div onclick="toggleSelectCard(this, 'Observation: Serious, Despair, Sad')" class="selectable-card border rounded-xl p-2 bg-slate-50">😞 गंभीर व निराश चेहरा</div>
+              <div onclick="toggleSelectCard(this, 'Observation: Restless, Constantly moving')" class="selectable-card border rounded-xl p-2 bg-slate-50">⚡ बेचैन / बार-बार हिलना</div>
+            </div>
+          </div>
+          <div class="space-y-1.5 border-t pt-2.5">
+            <label class="text-[11px] font-bold text-slate-700 block">Sensitivity & Emotional Reaction:</label>
+            <div class="grid grid-cols-2 gap-2 text-[11px]">
+              <div onclick="toggleSelectCard(this, 'Sensitive to Rudeness & Scolding')" class="selectable-card border rounded-xl p-2 bg-slate-50">💔 डांट/अपमान बर्दाश्त नहीं</div>
+              <div onclick="toggleSelectCard(this, 'Sensitive to Criticism / Reproach')" class="selectable-card border rounded-xl p-2 bg-slate-50">🎯 आलोचना से आहत</div>
+              <div onclick="toggleSelectCard(this, 'Consolation Aggravates')" class="selectable-card border rounded-xl p-2 bg-slate-50">🚫 सांत्वना से गुस्सा बढ़ना</div>
+              <div onclick="toggleSelectCard(this, 'Consolation Ameliorates (Craves sympathy)')" class="selectable-card border rounded-xl p-2 bg-slate-50">🤗 सांत्वना से आराम</div>
+            </div>
+          </div>
+          <div class="space-y-1.5 border-t pt-2.5">
+            <label class="text-[11px] font-bold text-slate-700 block">Anger & Anticipation:</label>
+            <div class="grid grid-cols-2 gap-2 text-[11px]">
+              <div onclick="toggleSelectCard(this, 'Anger Suppressed, Keeps brooding')" class="selectable-card border rounded-xl p-2 bg-slate-50">🤐 गुस्सा अंदर दबाए रखना</div>
+              <div onclick="toggleSelectCard(this, 'Violent Anger, Throws things')" class="selectable-card border rounded-xl p-2 bg-slate-50">💢 अत्यधिक तीव्र गुस्सा</div>
+              <div onclick="toggleSelectCard(this, 'AWOTA: Angry When Obliged To Answer')" class="selectable-card border rounded-xl p-2 bg-slate-50">🤬 बोलने पर चिढ़ना</div>
+              <div onclick="toggleSelectCard(this, 'Anticipation Anxiety before meeting/exam')" class="selectable-card border rounded-xl p-2 bg-slate-50">😰 कार्य से पूर्व घबराहट</div>
+              <div onclick="toggleSelectCard(this, 'Fastidious: Extreme Neatness / OCD')" class="selectable-card border rounded-xl p-2 bg-slate-50">🧹 अत्यधिक सफाई पसंद / OCD</div>
+              <div onclick="toggleSelectCard(this, 'Fear of Solitude & Darkness')" class="selectable-card border rounded-xl p-2 bg-slate-50">🌑 अकेलेपन व अंधेरे का डर</div>
+            </div>
+          </div>
+          <div class="border-t pt-2">
+            <label class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+              <i class="fa-solid fa-pen-to-square text-teal-700"></i> Other Symptoms / Mental General Notes (Page 3)
+            </label>
+            <textarea id="pOtherStep3" rows="2" placeholder="पारिवारिक माहौल, बचपन का तनाव, व्यक्तिगत मानसिक लक्षण..." class="w-full mt-1 border rounded-xl p-2 text-xs bg-slate-50"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 4: PHYSICAL GENERALS, SENSITIVITIES & APPETITE -->
+      <section id="stepView4" class="space-y-3 hidden">
+        <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 space-y-3.5">
+          <div class="flex justify-between items-center border-b pb-2">
+            <h2 class="font-bold text-xs text-teal-900">Step 4: Physical Generals, S/T & Food Desires</h2>
+            <span class="text-[9px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded font-bold">Physical Generals</span>
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-[11px] font-bold text-slate-700 block">Sensitivities to External Environment:</label>
+            <div class="grid grid-cols-3 gap-1.5 text-[10px]">
+              <div onclick="toggleSelectCard(this, 'Sensitive to Sun / Heat of Sun')" class="selectable-card border rounded-xl p-2 text-center bg-slate-50">☀️ धूप बर्दाश्त नहीं</div>
+              <div onclick="toggleSelectCard(this, 'Sensitive to Noise & Loud Sounds')" class="selectable-card border rounded-xl p-2 text-center bg-slate-50">📢 शोर बर्दाश्त नहीं</div>
+              <div onclick="toggleSelectCard(this, 'Sensitive to Strong Light')" class="selectable-card border rounded-xl p-2 text-center bg-slate-50">💡 तेज रोशनी से दिक्कत</div>
+              <div onclick="toggleSelectCard(this, 'Sensitive to Slightest Touch')" class="selectable-card border rounded-xl p-2 text-center bg-slate-50">🤏 हल्के स्पर्श से दर्द</div>
+              <div onclick="toggleSelectCard(this, 'Intolerance to Tight Clothing (Neck/Waist)')" class="selectable-card border rounded-xl p-2 text-center bg-slate-50">👔 तंग कपड़े बर्दाश्त नहीं</div>
+              <div onclick="toggleSelectCard(this, 'Sensitive to Strong Odors / Perfumes')" class="selectable-card border rounded-xl p-2 text-center bg-slate-50">🌸 तीखी गंध से सिरदर्द</div>
+            </div>
+          </div>
+          <div class="space-y-1.5 border-t pt-2.5">
+            <label class="text-[11px] font-bold text-slate-700 block">Food Desires & Aversions:</label>
+            <div class="grid grid-cols-3 gap-1.5 text-[10px]">
+              <div onclick="toggleSelectCard(this, 'Desire: Sweets & Sugar')" class="selectable-card border rounded-xl p-2 text-center bg-slate-50">🍬 मीठा बहुत पसंद</div>
+              <div onclick="toggleSelectCard(this, 'Desire: Salt & Extra salty')" class="selectable-card border rounded-xl p-2 text-center bg-slate-50">🧂 अधिक नमक पसंद</div>
+              <div onclick="toggleSelectCard(this, 'Desire: Spicy & Pungent')" class="selectable-card border rounded-xl p-2 text-center bg-slate-50">🌶️ मसालेदार पसंद</div>
+              <div onclick="toggleSelectCard(this, 'Desire: Ice-cold Drinks & Ice')" class="selectable-card border rounded-xl p-2 text-center bg-slate-50">🧊 बर्फ व ठंडा पानी</div>
+              <div onclick="toggleSelectCard(this, 'Desire: Warm Food & Warm Drinks')" class="selectable-card border rounded-xl p-2 text-center bg-slate-50">☕ गर्म खाना पसंद</div>
+              <div onclick="toggleSelectCard(this, 'Desire: Sour & Pickles')" class="selectable-card border rounded-xl p-2 text-center bg-slate-50">🍋 खट्टा व आचार</div>
+              <div onclick="toggleSelectCard(this, 'Aversion: Milk')" class="selectable-card border rounded-xl p-2 text-center bg-slate-50">🥛 दूध से नफरत</div>
+              <div onclick="toggleSelectCard(this, 'Aversion: Meat & Fatty Foods')" class="selectable-card border rounded-xl p-2 text-center bg-slate-50">🥩 मांस/वसा से नफरत</div>
+              <div onclick="toggleSelectCard(this, 'Aversion: Bread')" class="selectable-card border rounded-xl p-2 text-center bg-slate-50">🍞 रोटी से नफरत</div>
+            </div>
+          </div>
+          <div class="border-t pt-2">
+            <label class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+              <i class="fa-solid fa-pen-to-square text-teal-700"></i> Other Symptoms / Appetite & Digestion (Page 4)
+            </label>
+            <textarea id="pOtherStep4" rows="2" placeholder="भूख सहन न होना, पेट फूलना, विशेष पसंद-नापसंद..." class="w-full mt-1 border rounded-xl p-2 text-xs bg-slate-50"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 5: GNM SBS BIOLOGICAL CONFLICTS -->
+      <section id="stepView5" class="space-y-3 hidden">
+        <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-purple-200 space-y-3.5">
+          <div class="flex justify-between items-center border-b border-purple-100 pb-2">
+            <div>
+              <h2 class="font-bold text-xs text-purple-950">Step 5: GNM Psychological & Biological Conflicts (SBS)</h2>
+              <a href="https://learninggnm.com/SBS/documents/sbs_index.html" target="_blank" class="text-[9px] text-purple-700 font-bold underline flex items-center gap-1">
+                LearningGNM SBS Index <i class="fa-solid fa-arrow-up-right-from-square text-[8px]"></i>
+              </a>
+            </div>
+            <span class="text-[9px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded font-bold">5 Biological Laws</span>
+          </div>
+
+          <p class="text-[10px] text-slate-500 leading-tight">
+            डॉ. हेमर के अनुसार हर रोग (SBS) एक अप्रत्याशित भावनात्मक आघात (DHS) का जैविक परिणाम है:
+          </p>
+
+          <div class="grid grid-cols-2 gap-2 text-[11px]" id="gnmConflictCards">
+            <div onclick="toggleSelectCard(this, 'GNM: Indigestible Morsel Conflict (Endoderm / Gut)')" class="selectable-card gnm-card border rounded-xl p-2 bg-slate-50">
+              🍞 <strong>Indigestible Morsel</strong>
+              <span class="text-[9px] text-slate-500 block">अपच्य ग्रास/धोखा (Stomach/Colon)</span>
+            </div>
+            <div onclick="toggleSelectCard(this, 'GNM: Territorial Anger Conflict (Ectoderm / Bile/Stomach)')" class="selectable-card gnm-card border rounded-xl p-2 bg-slate-50">
+              😡 <strong>Territorial Anger</strong>
+              <span class="text-[9px] text-slate-500 block">सीमा/घर में कलह (Bile/GERD)</span>
+            </div>
+            <div onclick="toggleSelectCard(this, 'GNM: Separation Conflict (Ectoderm / Skin/Epidermis)')" class="selectable-card gnm-card border rounded-xl p-2 bg-slate-50">
+              💔 <strong>Separation Conflict</strong>
+              <span class="text-[9px] text-slate-500 block">प्रियजन से वियोग (Eczema/Skin)</span>
+            </div>
+            <div onclick="toggleSelectCard(this, 'GNM: Attack / Defilement Conflict (Mesoderm / Corium)')" class="selectable-card gnm-card border rounded-xl p-2 bg-slate-50">
+              🛡️ <strong>Attack / Defilement</strong>
+              <span class="text-[9px] text-slate-500 block">अपमान/गंदा महसूस होना (Acne/Skin)</span>
+            </div>
+            <div onclick="toggleSelectCard(this, 'GNM: Self-Devaluation Conflict (New Mesoderm / Bones/Joints)')" class="selectable-card gnm-card border rounded-xl p-2 bg-slate-50">
+              🦴 <strong>Self-Devaluation (SWE)</strong>
+              <span class="text-[9px] text-slate-500 block">अक्षमता/हीनता (Joints/Bones)</span>
+            </div>
+            <div onclick="toggleSelectCard(this, 'GNM: Death-Fright / Suffocation (Endoderm / Lung Alveoli)')" class="selectable-card gnm-card border rounded-xl p-2 bg-slate-50">
+              🫁 <strong>Death-Fright Conflict</strong>
+              <span class="text-[9px] text-slate-500 block">मृत्यु या दम घुटने का भय (Lungs/Asthma)</span>
+            </div>
+            <div onclick="toggleSelectCard(this, 'GNM: Water / Fluid Conflict (New Mesoderm / Kidney Parenchyma)')" class="selectable-card gnm-card border rounded-xl p-2 bg-slate-50">
+              🌊 <strong>Water/Fluid Conflict</strong>
+              <span class="text-[9px] text-slate-500 block">डूबना/पैसों का नुकसान (Kidney/BP)</span>
+            </div>
+            <div onclick="toggleSelectCard(this, 'GNM: Existence / Refugee / Abandonment (Kidney Collecting Tubules)')" class="selectable-card gnm-card border rounded-xl p-2 bg-slate-50">
+              🏚️ <strong>Existence / Refugee (KCT)</strong>
+              <span class="text-[9px] text-slate-500 block">अकेलापन/अस्तित्व का संकट (Edema/Water)</span>
+            </div>
+          </div>
+
+          <div class="border-t pt-2">
+            <label class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+              <i class="fa-solid fa-pen-to-square text-purple-700"></i> DHS Event Description / Psychological Conflict Notes (Page 5)
+            </label>
+            <textarea id="pOtherStep5" rows="2" placeholder="DHS आघात का समय, जीवन का अप्रत्याशित संकट, रोगी के वास्तविक शब्द..." class="w-full mt-1 border rounded-xl p-2 text-xs bg-slate-50"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 6: HISTORY, THERMALS & VITHOULKAS EXPERT SYSTEM (VES) -->
+      <section id="stepView6" class="space-y-3 hidden">
+        <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 space-y-3.5">
+          <div class="flex justify-between items-center border-b pb-2">
+            <h2 class="font-bold text-xs text-teal-900">Step 6: History, Thermals & VES Health Parameters</h2>
+            <span class="text-[9px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded font-bold">VES Integration</span>
+          </div>
+
+          <div class="bg-teal-50 p-2.5 rounded-xl border border-teal-200 space-y-1.5">
+            <label class="text-[11px] font-bold text-teal-950 flex items-center gap-1">
+              <i class="fa-solid fa-gauge-high text-teal-700"></i> VES Level of Health (विथोलकास स्तर):
+            </label>
+            <select id="vesLevel" class="w-full border rounded-lg p-1.5 text-xs bg-white font-semibold text-slate-800">
+              <option value="Group_A">Group A (Level 1-3): तेज बुखार (102°F+) उत्पन्न करने में सक्षम, स्पष्ट कीनोट्स</option>
+              <option value="Group_B" selected>Group B (Level 4-6): मध्यम स्वास्थ्य, दुर्लभ तेज बुखार, दबी हुई एलर्जी</option>
+              <option value="Group_C">Group C (Level 7-9): कोई बुखार नहीं, गहरी जीर्ण बीमारियां, जटिल लक्षण</option>
+              <option value="Group_D">Group D (Level 10-12): गंभीर पैथोलॉजी, पेलिएटिव स्थिति, कम वाइटैलिटी</option>
+            </select>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-[11px] font-bold text-slate-700 block">Past History & Suppression:</label>
+            <div class="grid grid-cols-2 gap-2 text-[11px]">
+              <div onclick="toggleSelectCard(this, 'Suppression: Skin Eruptions suppressed by Ointments')" class="selectable-card border rounded-xl p-2 bg-slate-50">⚕️ चर्म रोग मलम से दबाना</div>
+              <div onclick="toggleSelectCard(this, 'Suppression: Recurrent Antibiotics / Steroids')" class="selectable-card border rounded-xl p-2 bg-slate-50">💊 अत्यधिक एंटीबायोटिक्स</div>
+              <div onclick="toggleSelectCard(this, 'Never Well Since: Grief / Emotional Shock')" class="selectable-card border rounded-xl p-2 bg-slate-50">💔 गहरे शोक के बाद से रोग</div>
+              <div onclick="toggleSelectCard(this, 'Family History: Cancer, TB or Asthma')" class="selectable-card border rounded-xl p-2 bg-slate-50">🧬 परिवार में गंभीर रोग</div>
+            </div>
+          </div>
+
+          <div class="space-y-1.5 border-t pt-2.5">
+            <label class="text-[11px] font-bold text-slate-700 block">Sleep & Perspiration:</label>
+            <div class="grid grid-cols-2 gap-2 text-[11px]">
+              <div onclick="toggleSelectCard(this, 'Profuse Head Sweat during sleep')" class="selectable-card border rounded-xl p-2 bg-slate-50">💦 सोते समय सिर पर पसीना</div>
+              <div onclick="toggleSelectCard(this, 'Offensive Foot / Body Sweat')" class="selectable-card border rounded-xl p-2 bg-slate-50">🦶 बदबूदार पैरों का पसीना</div>
+              <div onclick="toggleSelectCard(this, 'Disturbed Sleep, Wakes with anxiety')" class="selectable-card border rounded-xl p-2 bg-slate-50">😴 नींद में घबराहट से उठना</div>
+              <div onclick="toggleSelectCard(this, 'Dreams of Falling, Dead bodies, Snakes')" class="selectable-card border rounded-xl p-2 bg-slate-50">🐍 सांप, गिरने, मृतकों के सपने</div>
+            </div>
+          </div>
+
+          <div class="space-y-2 border-t pt-2.5">
+            <label class="text-[11px] font-bold text-slate-700 block">Thermals (रोगी की तासीर) *</label>
+            <div class="grid grid-cols-3 gap-1.5 text-xs">
+              <button type="button" onclick="setSingleChip('thermal', 'Chilly (सर्द मिजाज - ठंड बर्दाश्त नहीं)', this)" class="thermal-chip chip-active border rounded-xl py-2.5 text-[11px] font-bold">❄️ Chilly</button>
+              <button type="button" onclick="setSingleChip('thermal', 'Hot (गर्म मिजाज - पंखा/हवा चाहिए)', this)" class="thermal-chip border rounded-xl py-2.5 text-[11px] font-bold">🔥 Hot</button>
+              <button type="button" onclick="setSingleChip('thermal', 'Ambithermal (सामान्य/दोनों)', this)" class="thermal-chip border rounded-xl py-2.5 text-[11px] font-bold">⚖️ Ambi</button>
+            </div>
+            <input type="hidden" id="pThermalVal" value="Chilly">
+
+            <label class="text-[11px] font-bold text-slate-700 block pt-1">Thirst (प्यास का स्वभाव) *</label>
+            <div class="grid grid-cols-3 gap-1.5 text-xs">
+              <button type="button" onclick="setSingleChip('thirst', 'Thirsty (बड़ी मात्रा में पानी)', this)" class="thirst-chip chip-active border rounded-xl py-2 text-[11px]">💧 Thirsty</button>
+              <button type="button" onclick="setSingleChip('thirst', 'Small sips, frequent (घूंट-घूंट प्यास)', this)" class="thirst-chip border rounded-xl py-2 text-[11px]">🥤 Small Sips</button>
+              <button type="button" onclick="setSingleChip('thirst', 'Thirstless (प्यास बिल्कुल नहीं)', this)" class="thirst-chip border rounded-xl py-2 text-[11px]">🚫 Thirstless</button>
+            </div>
+            <input type="hidden" id="pThirstVal" value="Thirsty">
+          </div>
+
+          <div class="border-t pt-2">
+            <label class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+              <i class="fa-solid fa-pen-to-square text-teal-700"></i> Other Symptoms / Miasmatic Notes (Page 6)
+            </label>
+            <textarea id="pOtherStep6" rows="2" placeholder="माहवारी के लक्षण, मियाज़्म, दबी हुई बीमारियां..." class="w-full mt-1 border rounded-xl p-2 text-xs bg-slate-50"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 7: REPERTORIZATION SHEET -->
+      <section id="stepView7" class="space-y-3 hidden">
+        <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 space-y-3.5">
+          <div class="flex justify-between items-center border-b pb-2">
+            <div>
+              <h2 class="font-bold text-xs text-indigo-950">Step 7: Synthesis Treasure & VES Repertorization</h2>
+              <p class="text-[10px] text-slate-500">Synthesis Treasure + Complete Repertory + VES Logic</p>
+            </div>
+            <span class="text-[9px] bg-indigo-100 text-indigo-900 px-2 py-0.5 rounded font-bold">Second Last Page</span>
+          </div>
+
+          <button type="button" onclick="executeAIRepertorization()" class="w-full bg-gradient-to-r from-teal-700 via-indigo-700 to-teal-800 hover:from-teal-800 hover:to-indigo-800 text-white font-bold py-3.5 rounded-xl shadow-lg text-xs flex items-center justify-center gap-2">
+            <i class="fa-solid fa-brain text-sm"></i> Run Repertorization & Generate Totality Matrix (-1 Token)
+          </button>
+
+          <!-- AI SUGGESTED QUESTIONS -->
+          <div id="aiSuggestedQuestionsBox" class="hidden bg-amber-50 border border-amber-300 rounded-xl p-3 space-y-1.5">
+            <span class="text-[10px] font-bold uppercase text-amber-900 flex items-center gap-1">
+              <i class="fa-solid fa-circle-question text-amber-600"></i> AI & VES Missing Questions Analysis:
+            </span>
+            <div id="aiQuestionsList" class="text-[11px] text-amber-950 space-y-1"></div>
+          </div>
+
+          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+            <div class="flex justify-between items-center">
+              <span class="text-[10px] font-bold uppercase text-slate-500">Selected Totality Rubrics (<span id="totalityCount">0</span>):</span>
+              <span class="text-[9px] text-teal-700 font-bold">Synthesis & GNM Base</span>
+            </div>
+            <div id="selectedRubricsChips" class="flex flex-wrap gap-1 text-[10px] text-teal-900 font-medium">
+              <span class="bg-white border px-2 py-0.5 rounded-md text-slate-400">Please select symptoms from earlier pages</span>
+            </div>
+          </div>
+
+          <!-- TOP 5 REMEDIES LIST -->
+          <div id="repertorySheetContainer" class="space-y-3 hidden">
+            <div class="flex justify-between items-center">
+              <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Top 5 Remedies (VES & Synthesis Weighted)</h3>
+              <span class="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Repertorized</span>
+            </div>
+            <div id="repertoryCardsList" class="space-y-3"></div>
+          </div>
+
+          <div class="border-t pt-2">
+            <label class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+              <i class="fa-solid fa-pen-to-square text-teal-700"></i> Other Repertorial Notes / Differential Diagnosis (Page 7)
+            </label>
+            <textarea id="pOtherStep7" rows="2" placeholder="दवाओं के अंतर, पोटेन्सी का चुनाव व अन्य विचार..." class="w-full mt-1 border rounded-xl p-2 text-xs bg-slate-50"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 8: 5-MEDICINE PRESCRIPTION MATRIX -->
+      <section id="stepView8" class="space-y-3 hidden">
+        <div class="bg-white p-3.5 rounded-2xl shadow-sm border-2 border-teal-600 space-y-3">
+          <div class="flex justify-between items-center border-b pb-1.5">
+            <div>
+              <h2 class="font-bold text-xs text-slate-900">Step 8: 5-Medicine Prescription Matrix</h2>
+              <p class="text-[10px] text-slate-500">Main + Biochemic + Mother Tincture + Nosode + Supportive</p>
+            </div>
+            <span class="text-[9px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded font-bold">Final Page</span>
+          </div>
+
+          <!-- Rx 1 -->
+          <div class="grid grid-cols-2 gap-1.5 bg-teal-50 p-2.5 rounded-xl border border-teal-200">
+            <input id="rxMed1" type="text" placeholder="1. Similimum Remedy *" class="border rounded-lg px-2.5 py-1 text-xs font-bold text-teal-950">
+            <select id="rxPot1" class="border rounded-lg px-1.5 py-1 text-xs font-bold"><option>200C</option><option>30C</option><option>1M</option><option>0/1 LM</option><option>10M</option></select>
+            <input id="rxRep1" type="text" value="सुबह और शाम 4-4 गोली (BD)" class="col-span-2 border rounded-lg px-2 py-1 text-xs">
+          </div>
+
+          <!-- Rx 2 -->
+          <div class="grid grid-cols-2 gap-1.5 bg-slate-50 p-2.5 rounded-xl border">
+            <input id="rxMed2" type="text" placeholder="2. Biochemic Tissue Salt" class="border rounded-lg px-2.5 py-1 text-xs font-semibold">
+            <select id="rxPot2" class="border rounded-lg px-1.5 py-1 text-xs"><option>6X</option><option>12X</option><option>30X</option><option>200C</option></select>
+            <input id="rxRep2" type="text" value="4 गोली दिन में 3 बार गुनगुने पानी से (TDS)" class="col-span-2 border rounded-lg px-2 py-1 text-xs">
+          </div>
+
+          <!-- Rx 3 -->
+          <div class="grid grid-cols-2 gap-1.5 bg-slate-50 p-2.5 rounded-xl border">
+            <input id="rxMed3" type="text" placeholder="3. Mother Tincture Q (Specific)" class="border rounded-lg px-2.5 py-1 text-xs font-semibold">
+            <select id="rxPot3" class="border rounded-lg px-1.5 py-1 text-xs"><option>Q (MT)</option><option>30C</option></select>
+            <input id="rxRep3" type="text" value="15 बूंद आधे कप पानी में दिन में 2 बार" class="col-span-2 border rounded-lg px-2 py-1 text-xs">
+          </div>
+
+          <!-- Rx 4 -->
+          <div class="grid grid-cols-2 gap-1.5 bg-slate-50 p-2.5 rounded-xl border">
+            <input id="rxMed4" type="text" placeholder="4. Intercurrent Nosode / Deep Acting" class="border rounded-lg px-2.5 py-1 text-xs font-semibold">
+            <select id="rxPot4" class="border rounded-lg px-1.5 py-1 text-xs"><option>1M</option><option>200C</option><option>10M</option></select>
+            <input id="rxRep4" type="text" value="सप्ताह में केवल 1 खुराक (रविवार सुबह)" class="col-span-2 border rounded-lg px-2 py-1 text-xs">
+          </div>
+
+          <!-- Rx 5 -->
+          <div class="grid grid-cols-2 gap-1.5 bg-slate-50 p-2.5 rounded-xl border">
+            <input id="rxMed5" type="text" placeholder="5. Supportive / External Drop" class="border rounded-lg px-2.5 py-1 text-xs font-semibold">
+            <select id="rxPot5" class="border rounded-lg px-1.5 py-1 text-xs"><option>Q (MT)</option><option>30C</option></select>
+            <input id="rxRep5" type="text" value="आवश्यकतानुसार निर्देशानुसार लें" class="col-span-2 border rounded-lg px-2 py-1 text-xs">
+          </div>
+
+          <!-- AI Generated Diet & Restrictions -->
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-[11px] font-bold text-slate-700">AI Diet & Lifestyle Restrictions *</label>
+              <span class="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold">Auto-Generated</span>
+            </div>
+            <textarea id="rxParhez" rows="4" class="w-full border rounded-xl p-2.5 text-xs bg-amber-50 font-medium"></textarea>
+          </div>
+
+          <div class="flex gap-2 items-center">
+            <label class="text-[11px] font-bold text-slate-700 whitespace-nowrap">Follow-up Date:</label>
+            <input id="rxFollowup" type="date" class="border rounded-xl px-2.5 py-1.5 text-xs font-bold text-teal-900 w-full">
+          </div>
+
+          <div class="border-t pt-2">
+            <label class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+              <i class="fa-solid fa-pen-to-square text-teal-700"></i> Special Doctor Advice / Prognosis (Page 8)
+            </label>
+            <textarea id="pOtherStep8" rows="2" placeholder="विशेष सावधानी, योग/व्यायाम, जांच रिपोर्ट की आवश्यकता..." class="w-full mt-1 border rounded-xl p-2 text-xs bg-slate-50"></textarea>
+          </div>
+
+          <!-- ACTION BUTTONS: FINISH, SHARE WA, DOWNLOAD DUAL PDF -->
+          <div class="grid grid-cols-3 gap-1.5 pt-2 border-t no-print">
+            <button type="button" onclick="finishCaseTaking()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl text-[11px] shadow-lg flex flex-col items-center justify-center gap-1">
+              <i class="fa-solid fa-circle-check text-emerald-400 text-sm"></i> Finish & Save
+            </button>
+            <button type="button" onclick="sendWhatsAppPrescriptionAndRepertory()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-[11px] shadow-lg flex flex-col items-center justify-center gap-1">
+              <i class="fa-brands fa-whatsapp text-sm"></i> Share on WA
+            </button>
+            <button type="button" onclick="downloadPrescriptionPdf()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl text-[11px] shadow-lg flex flex-col items-center justify-center gap-1">
+              <i class="fa-solid fa-file-pdf text-amber-300 text-sm"></i> Download PDF
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- DUAL PRINTABLE CONTAINER -->
+      <div id="printablePrescriptionArea" style="display:none;" class="bg-white">
+        <div style="border-bottom: 2px solid #0f766e; padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-start;">
+          <div>
+            <h1 style="font-size: 20px; font-weight: bold; color: #0f766e; margin: 0;" id="pdfClinicName">ClassicalAI_ver_3.0</h1>
+            <p style="margin: 2px 0; font-size: 11px; color: #4b5563;" id="pdfDocName">Classical Homeopathic Physician</p>
+          </div>
+          <div style="text-align: right; font-size: 11px; color: #4b5563;">
+            <p style="margin: 0;">Date: <strong id="pdfPrescriptionDate"></strong></p>
+            <p style="margin: 2px 0;">Reg No: <span id="pdfDoctorRegNo">ADMIN-09</span></p>
+          </div>
+        </div>
+
+        <div style="background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; margin-bottom: 14px; display: flex; justify-content: space-between; font-size: 11.5px;">
+          <div><strong>Patient:</strong> <span id="pdfPatientName">--</span></div>
+          <div><strong>Age/Gender:</strong> <span id="pdfPatientAgeGender">--</span></div>
+          <div><strong>Category:</strong> <span id="pdfPatientDiagnosis">--</span></div>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <h3 style="font-size: 13px; font-weight: bold; border-bottom: 1.5px solid #0f766e; padding-bottom: 3px; color: #0f766e; margin-bottom: 8px;">
+            1. Rx (Homoeopathic Classical Prescription)
+          </h3>
+          <div id="pdfMedicinesList" style="line-height: 1.7; font-size: 11.5px;"></div>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <h3 style="font-size: 13px; font-weight: bold; border-bottom: 1.5px solid #0f766e; padding-bottom: 3px; color: #0f766e; margin-bottom: 8px;">
+            2. Synthesis Treasure & VES Repertorization Sheet (Top 5 Matches)
+          </h3>
+          <div style="font-size: 10px; margin-bottom: 6px; color: #374151;">
+            <strong>Covered Rubrics & GNM Conflicts:</strong> <span id="pdfRubricsList">Constitutional Generals</span>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 10.5px; text-align: left; margin-bottom: 8px;">
+            <thead>
+              <tr style="background-color: #0f766e; color: #ffffff;">
+                <th style="padding: 5px 8px; border: 1px solid #cbd5e1;">#</th>
+                <th style="padding: 5px 8px; border: 1px solid #cbd5e1;">Remedy</th>
+                <th style="padding: 5px 8px; border: 1px solid #cbd5e1;">Thermal & Miasm</th>
+                <th style="padding: 5px 8px; border: 1px solid #cbd5e1;">VES Score</th>
+                <th style="padding: 5px 8px; border: 1px solid #cbd5e1;">Probability</th>
+              </tr>
+            </thead>
+            <tbody id="pdfRepertoryTableBody"></tbody>
+          </table>
+        </div>
+
+        <div style="margin-bottom: 14px; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 6px; padding: 8px 10px;">
+          <h4 style="font-size: 11.5px; font-weight: bold; color: #92400e; margin: 0 0 4px 0;">Diet & Lifestyle Restrictions (परहेज एवं निर्देश):</h4>
+          <p id="pdfDietRestrictions" style="font-size: 10.5px; margin: 0; white-space: pre-line; color: #1f2937; line-height: 1.5;"></p>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid #cbd5e1; padding-top: 10px; margin-top: 15px; font-size: 10.5px;">
+          <div>
+            <p style="margin: 0;"><strong>Follow-up:</strong> <span id="pdfFollowupDate"></span></p>
+            <p style="margin: 2px 0; color: #6b7280; font-size: 9px;">ClassicalAI_ver_3.0 Synthesis + VES System</p>
+          </div>
+          <div style="text-align: right;">
+            <p style="margin: 0 0 25px 0;">&nbsp;</p>
+            <p style="margin: 0; border-top: 1px dashed #6b7280; padding-top: 2px;">Physician Signature</p>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- BOTTOM NAV -->
+    <nav id="bottomNavBar" class="fixed bottom-0 w-full max-w-[480px] bg-white border-t border-slate-200 shadow-lg z-30">
+      <div class="px-3 py-2 flex justify-between items-center gap-2">
+        <button type="button" onclick="changeStep(-1)" id="btnBottomPrev" class="w-1/3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2.5 rounded-xl text-xs">Prev</button>
+        <button type="button" onclick="openRechargeModal()" id="btnBottomRecharge" class="w-1/3 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold py-2.5 rounded-xl text-xs">Recharge</button>
+        <button type="button" onclick="changeStep(1)" id="btnBottomNext" class="w-1/3 bg-teal-700 hover:bg-teal-800 text-white font-bold py-2.5 rounded-xl text-xs">Next</button>
+      </div>
+    </nav>
+
+  </div>
+
+  <script>
+    // SUPABASE CLIENT INITIALIZATION
+    const SUPABASE_URL = "https://hhnbayuaozzykbtvfvdk.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhobmJheXVhb3p6eWtidHZmdmRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyNjIwNDgsImV4cCI6MjEwNzgzODA0OH0.3MsK9nEKRjbXPqUBRj9-hBdn5TkcIcKUXUvqYeNDt5s";
+    
+    let supabaseClient = null;
+    try {
+      if (window.supabase) {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      }
+    } catch(e) {}
+
+    // YOUR ACTIVE LIVE RAZORPAY KEY
+    const RAZORPAY_KEY_ID = "rzp_live_bIn9zAJeWUjqOX";
+
+    // MATERIA MEDICA DATABASE WITH SYNTHESIS TREASURE, VES, GNM & EXTENSIVE KEYWORDS
+    const materiaMedicaRepo = [
+      {
+        name: "Lycopodium Clavatum",
+        thermal: "Hot / Ambithermal",
+        miasm: "Psora-Sycosis",
+        vesAffinity: "Liver & Right Side Dominant, High Intellectual with Emotional Insecurity",
+        gnmMatches: ["GNM: Indigestible Morsel Conflict (Endoderm / Gut)", "GNM: Territorial Anger Conflict (Ectoderm / Bile/Stomach)"],
+        keywords: ["gas", "flatulence", "bloating", "liver", "right", "sweet", "warm", "4-8", "evening", "kidney", "stone", "intellectual", "erectile", "impotence", "hair", "belching", "fullness", "pet", "dard"],
+        keySymptoms: ["Desire: Sweets & Sugar", "Desire: Warm Food & Warm Drinks", "Side: Right-sided", "Aggravation: 4 to 8 PM", "Severe Flatulence & Gas in lower abdomen (4-8 PM)", "Kidney Stone: Right-sided sharp renal colic", "Thirsty (बड़ी मात्रा में पानी)"],
+        shortNote: "Synthesis Gr-4 in 4-8 PM agg, right to left. GNM: Territorial anger & indigestible conflict."
+      },
+      {
+        name: "Natrum Muriaticum",
+        thermal: "Hot",
+        miasm: "Psora-Syphilitic",
+        vesAffinity: "Deep Emotional Closed State, Ailments from Silent Grief (VES Level 4-6)",
+        gnmMatches: ["GNM: Separation Conflict (Ectoderm / Skin/Epidermis)", "GNM: Existence / Refugee / Abandonment (Kidney Collecting Tubules)"],
+        keywords: ["grief", "sad", "weep", "salt", "sun", "headache", "migraine", "alone", "consolation", "dry", "skin", "eczema", "hair", "anemia", "dhup", "sir dard", "chup", "ronaa"],
+        keySymptoms: ["Desire: Salt & Extra salty", "Consolation Aggravates", "Sensitive to Sun / Heat of Sun", "Never Well Since: Grief / Emotional Shock", "Headache aggravated by Sun exposure", "Aversion: Bread", "Observation: Serious, Despair, Sad"],
+        shortNote: "Synthesis Gr-4 in silent grief & sun agg. GNM: Severe separation & abandonment conflict."
+      },
+      {
+        name: "Arsenicum Album",
+        thermal: "Chilly",
+        miasm: "Psora-Syphilitic",
+        vesAffinity: "Extreme Anxiety of Health, Fastidiousness, Restlessness (VES Keynote King)",
+        gnmMatches: ["GNM: Death-Fright / Suffocation (Endoderm / Lung Alveoli)", "GNM: Existence / Refugee / Abandonment (Kidney Collecting Tubules)"],
+        keywords: ["anxiety", "restless", "fear", "death", "fastidious", "clean", "ocd", "midnight", "burning", "warm", "asthma", "diarrhea", "poison", "chinta", "bechaini", "jalan", "safai"],
+        keySymptoms: ["Fastidious: Extreme Neatness / OCD", "Small sips, frequent (घूंट-घूंट प्यास)", "Aggravation: Midnight 12-2 AM", "Desire: Warm Food & Warm Drinks", "Asthma worse between 12 to 2 AM", "Disturbed Sleep, Wakes with anxiety", "Fear of Solitude & Darkness"],
+        shortNote: "Synthesis Gr-4 in midnight agg & burning amel heat. GNM: Death-fright & panic."
+      },
+      {
+        name: "Pulsatilla Nigricans",
+        thermal: "Hot (Craves Open Air)",
+        miasm: "Psora-Sycosis",
+        vesAffinity: "Mild, Gentle, Weeping Mood, Seeking Sympathy (VES Group A-B)",
+        gnmMatches: ["GNM: Separation Conflict (Ectoderm / Skin/Epidermis)", "GNM: Indigestible Morsel Conflict (Endoderm / Gut)"],
+        keywords: ["mild", "gentle", "weep", "cry", "sympathy", "fat", "butter", "thirstless", "open air", "changeable", "pcod", "menses", "delayed", "catarrh", "hava", "pyas", "santwana"],
+        keySymptoms: ["Observation: Timid, Hesitant, Slow", "Consolation Ameliorates (Craves sympathy)", "Aversion: Meat & Fatty Foods", "Thirstless (प्यास बिल्कुल नहीं)", "PCOD with Delayed, Scanty Menses", "Onset: Gradual & Insidious"],
+        shortNote: "Synthesis Gr-4 in thirstlessness & open air amel. GNM: Abandonment/separation without bitterness."
+      },
+      {
+        name: "Nux Vomica",
+        thermal: "Chilly",
+        miasm: "Psora",
+        vesAffinity: "Type-A Workaholic, Hypersensitive, Abusing Stimulants (VES Toxic Group)",
+        gnmMatches: ["GNM: Territorial Anger Conflict (Ectoderm / Bile/Stomach)", "GNM: Indigestible Morsel Conflict (Endoderm / Gut)"],
+        keywords: ["angry", "irritable", "spicy", "chilli", "coffee", "alcohol", "constipation", "urging", "gastric", "acidity", "morning", "antibiotic", "insomnia", "gussa", "kabz", "mirch"],
+        keySymptoms: ["Observation: Bold, Fast, Hurried", "Violent Anger, Throws things", "AWOTA: Angry When Obliged To Answer", "Desire: Spicy & Pungent", "Acidity, GERD & Sour Eructations after meals", "Suppression: Recurrent Antibiotics / Steroids", "Aggravation: Morning on waking"],
+        shortNote: "Synthesis Gr-4 in ineffectual urging & irritability. GNM: Intense territorial rivalry & anger."
+      },
+      {
+        name: "Phosphorus",
+        thermal: "Chilly / Ambithermal",
+        miasm: "Tubercular",
+        vesAffinity: "Open, Clairvoyant, Diffuse Energy, Impressionable (VES Level 2-4)",
+        gnmMatches: ["GNM: Separation Conflict (Ectoderm / Skin/Epidermis)", "GNM: Death-Fright / Suffocation (Endoderm / Lung Alveoli)"],
+        keywords: ["cold drink", "ice", "bleed", "hemorrhage", "thunder", "dark", "fear", "tall", "slender", "left", "cough", "hoarse", "throat", "hair fall", "thand", "barf", "khansi"],
+        keySymptoms: ["Desire: Ice-cold Drinks & Ice", "Fear of Solitude & Darkness", "Side: Left-sided", "Thirsty (बड़ी मात्रा में पानी)", "Never Well Since: Grief / Emotional Shock", "Sensitive to Strong Light"],
+        shortNote: "Synthesis Gr-4 craving cold drinks & bleeding tendency. GNM: Fear of losing boundary."
+      },
+      {
+        name: "Lachesis Muta",
+        thermal: "Hot",
+        miasm: "Syphilitic",
+        vesAffinity: "Left to Right, Suspicious, Loquacious, Extreme Suffocation (VES High Intensity)",
+        gnmMatches: ["GNM: Attack / Defilement Conflict (Mesoderm / Corium)", "GNM: Territorial Anger Conflict (Ectoderm / Bile/Stomach)"],
+        keywords: ["tight", "neck", "collar", "choke", "sleep", "jealous", "suspicious", "talk", "left", "menopause", "flush", "purplish", "throat", "gala", "tang", "neend"],
+        keySymptoms: ["Intolerance to Tight Clothing (Neck/Waist)", "Side: Left-sided", "Aggravation: Midnight 12-2 AM", "Violent Anger, Throws things", "Hot Flushes with mood swings during Menopause"],
+        shortNote: "Synthesis Gr-4 intolerance to constriction & agg after sleep. GNM: Territorial threat."
+      },
+      {
+        name: "Thuja Occidentalis",
+        thermal: "Chilly",
+        miasm: "Sycosis",
+        vesAffinity: "Fixed Ideas, Sycotic Overgrowth, Bad Effects of Vaccination (VES Miasmatic Core)",
+        gnmMatches: ["GNM: Attack / Defilement Conflict (Mesoderm / Corium)", "GNM: Self-Devaluation Conflict (New Mesoderm / Bones/Joints)"],
+        keywords: ["wart", "mole", "vaccine", "growth", "tumor", "polyp", "tea", "onion", "left", "dandruff", "perspiration", "sweetish", "fixed idea", "massa", "tika"],
+        keySymptoms: ["Suppression: Skin Eruptions suppressed by Ointments", "Multiple Warts on face, hands and neck", "Suppression: Recurrent Antibiotics / Steroids", "Dreams of Falling, Dead bodies, Snakes", "Aversion: Meat & Fatty Foods"],
+        shortNote: "Synthesis Gr-4 in warts & sycosis. GNM: Defilement, feeling unclean/damaged."
+      }
+    ];
+
+    let currentDoctor = null;
+    let currentStep = 1;
+    let selectedRubricsList = [];
+    let selectedPlan = { tokens: 150, price: 499 };
+    let latestTop5Remedies = [];
+
+    // ==================== INSTANT SYNCHRONOUS LOGIN ====================
+    function handleLoginSubmit(e) {
+      if (e) e.preventDefault();
+      loginAsDoctor();
+    }
+
+    function loginAsDoctor() {
+      const regInput = document.getElementById("loginRegNo");
+      const pinInput = document.getElementById("loginPin");
+      const err = document.getElementById("docAuthError");
+
+      const reg = (regInput ? regInput.value : "").trim().toUpperCase();
+      const pin = (pinInput ? pinInput.value : "").trim();
+
+      if (err) {
+        err.classList.add("hidden");
+        err.innerText = "";
+      }
+
+      // Default master bypass if left blank or typed
+      const activeReg = reg || "ADMIN-09";
+      const activePin = pin || "1801";
+
+      if (activeReg === "ADMIN-01") {
+        if (err) {
+          err.innerText = "❌ प्रोफाइल ADMIN-01 निष्क्रिय है। ADMIN-09 का प्रयोग करें।";
+          err.classList.remove("hidden");
+        }
+        return;
+      }
+
+      // 1. Direct Hardcoded Authentication (No Network Dependency)
+      if (activeReg === "ADMIN-09" && activePin === "1801") {
+        currentDoctor = {
+          doctor_name: "Dr. R.K. Singh, MD (Hom.)",
+          clinic_name: "ClassicalAI_ver_3.0",
+          reg_no: "ADMIN-09",
+          whatsapp_no: "919235551713",
+          access_pin: "1801",
+          ai_tokens: 100,
+          status: "Active"
+        };
+        try { localStorage.setItem("homoeo_current_doctor", JSON.stringify(currentDoctor)); } catch(e){}
+        launchApp();
+        return;
+      }
+
+      // 2. Local Database Fallback
+      try {
+        const localList = JSON.parse(localStorage.getItem("homoeo_master_doctors_db") || "[]");
+        const found = localList.find(d => (d.reg_no || "").toUpperCase() === activeReg);
+        if (found && (found.access_pin || "").trim() === activePin && found.status === "Active") {
+          currentDoctor = found;
+          try { localStorage.setItem("homoeo_current_doctor", JSON.stringify(found)); } catch(e){}
+          launchApp();
+          return;
+        }
+      } catch (e) {}
+
+      if (err) {
+        err.innerText = "अमान्य क्रेडेंशियल! (ADMIN-09 और 1801 का प्रयोग करें)";
+        err.classList.remove("hidden");
+      }
+    }
+
+    function launchApp() {
+      const auth = document.getElementById("authModal");
+      if (auth) auth.classList.add("hidden");
+
+      if (!currentDoctor) {
+        currentDoctor = {
+          doctor_name: "Dr. R.K. Singh, MD (Hom.)",
+          clinic_name: "ClassicalAI_ver_3.0",
+          reg_no: "ADMIN-09",
+          whatsapp_no: "919235551713",
+          access_pin: "1801",
+          ai_tokens: 100,
+          status: "Active"
+        };
+      }
+
+      document.getElementById("headerClinic").innerText = currentDoctor.clinic_name || "ClassicalAI_ver_3.0";
+      document.getElementById("headerDoc").innerText = `${currentDoctor.doctor_name} (${currentDoctor.reg_no})`;
+      document.getElementById("headerTokenCount").innerText = currentDoctor.ai_tokens || 100;
+      document.getElementById("walletModalTokens").innerText = currentDoctor.ai_tokens || 100;
+
+      onDiagnosisChange();
+
+      const d = new Date();
+      d.setDate(d.getDate() + 15);
+      const fu = document.getElementById("rxFollowup");
+      if (fu && !fu.value) fu.value = d.toISOString().split('T')[0];
+
+      goToStep(1);
+    }
+
+    function logoutApp() {
+      try { localStorage.removeItem("homoeo_current_doctor"); } catch(e) {}
+      const auth = document.getElementById("authModal");
+      if (auth) auth.classList.remove("hidden");
+    }
+
+    async function refreshDoctorBalance() {
+      const icon = document.getElementById("syncBalIcon");
+      if (icon) icon.classList.add("fa-spin");
+      if (currentDoctor && currentDoctor.reg_no && supabaseClient) {
+        try {
+          const { data } = await supabaseClient.from('doctors').select('*').eq('reg_no', currentDoctor.reg_no).single();
+          if (data) {
+            currentDoctor = data;
+            document.getElementById("headerTokenCount").innerText = currentDoctor.ai_tokens;
+            document.getElementById("walletModalTokens").innerText = currentDoctor.ai_tokens;
+            localStorage.setItem("homoeo_current_doctor", JSON.stringify(data));
+          }
+        } catch(e) {}
+      }
+      setTimeout(() => { if (icon) icon.classList.remove("fa-spin"); }, 400);
+    }
+
+    // ==================== NAVIGATION & WORKSPACE ====================
+    function goToStep(step) {
+      currentStep = step;
+      for (let i = 1; i <= 8; i++) {
+        const view = document.getElementById(`stepView${i}`);
+        if (view) view.classList.toggle("hidden", i !== step);
+        const btn = document.getElementById(`stepBtn${i}`);
+        if (btn) {
+          btn.className = (i === step) ? "px-2.5 py-1 rounded step-active shadow" : (i === 5 ? "px-2.5 py-1 rounded text-purple-300 font-bold" : (i === 7 ? "px-2.5 py-1 rounded text-amber-300 font-bold" : "px-2.5 py-1 rounded text-teal-200"));
+        }
+      }
+
+      const nextBtn = document.getElementById("btnBottomNext");
+      if (step === 8) {
+        if(nextBtn) nextBtn.classList.add("hidden");
+        document.getElementById("btnBottomPrev").className = "w-1/2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2.5 rounded-xl text-xs";
+        document.getElementById("btnBottomRecharge").className = "w-1/2 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold py-2.5 rounded-xl text-xs";
+      } else {
+        if(nextBtn) nextBtn.classList.remove("hidden");
+        document.getElementById("btnBottomPrev").className = "w-1/3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2.5 rounded-xl text-xs";
+        document.getElementById("btnBottomRecharge").className = "w-1/3 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold py-2.5 rounded-xl text-xs";
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function changeStep(d) {
+      const n = currentStep + d;
+      if (n >= 1 && n <= 8) goToStep(n);
+    }
+
+    function toggleSelectCard(el, rubricText) {
+      el.classList.toggle('selected');
+      const idx = selectedRubricsList.indexOf(rubricText);
+      if (idx >= 0) {
+        selectedRubricsList.splice(idx, 1);
+      } else {
+        selectedRubricsList.push(rubricText);
+      }
+      updateSelectedRubricsUI();
+    }
+
+    function updateSelectedRubricsUI() {
+      const container = document.getElementById("selectedRubricsChips");
+      const countEl = document.getElementById("totalityCount");
+      if (countEl) countEl.innerText = selectedRubricsList.length;
+
+      if (!container) return;
+      if (selectedRubricsList.length === 0) {
+        container.innerHTML = `<span class="bg-white border px-2 py-0.5 rounded-md text-slate-400">Please select symptoms from earlier pages</span>`;
+        return;
+      }
+      container.innerHTML = selectedRubricsList.map(r => `
+        <span class="${r.startsWith('GNM:') ? 'bg-purple-50 border-purple-200 text-purple-900' : 'bg-teal-50 border-teal-200 text-teal-800'} border px-2 py-0.5 rounded-md text-[10px] font-semibold">
+          • ${r}
