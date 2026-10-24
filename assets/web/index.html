@@ -58,6 +58,11 @@
           <button type="submit" id="loginBtn" class="w-full bg-teal-700 hover:bg-teal-800 text-white font-bold py-3 rounded-xl shadow-md text-xs flex items-center justify-center gap-2">
             <i class="fa-solid fa-shield-check"></i> Authorize & Enter App
           </button>
+          <div class="text-center text-[10px] text-slate-400 font-bold">OR</div>
+          <button type="button" onclick="enterDemoMode()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold py-2.5 rounded-xl text-xs">
+            Open Safe Demo (fictional data only)
+          </button>
+          <p class="text-[10px] leading-relaxed text-slate-500">Demo runs locally in this page. Login, cloud sync, patient-case saving and payments remain disabled.</p>
         </form>
       </div>
     </div>
@@ -87,6 +92,11 @@
     <!-- RECHARGE MODAL: disabled until server-verified payments are implemented -->
     <div id="rechargeModal" class="hidden" role="dialog" aria-modal="true" aria-label="Recharge unavailable">
       <p>Recharge is disabled until secure server-side payment verification is configured.</p>
+    </div>
+
+    <!-- DEMO MODE NOTICE -->
+    <div id="demoBanner" class="hidden bg-amber-100 text-amber-950 border-b border-amber-300 px-3 py-2 text-center text-[11px] font-bold">
+      DEMO MODE — fictional data only. Nothing is saved to the cloud; case saving and payments are disabled.
     </div>
 
     <!-- TOP HEADER -->
