@@ -642,7 +642,7 @@
     }
 
     function shareHistoryCaseWA(caseId) {
-      let cases = JSON.parse(localStorage.getItem("khc_saved_cases") || "[]");
+      let cases = [...sessionCases];
       const c = cases.find(item => item.id === caseId);
       if (!c) return;
 
