@@ -7,7 +7,6 @@
   <title>ClassicalAI_ver_3.0</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
@@ -716,16 +715,9 @@
   </div>
 
   <script>
-    // SUPABASE CLIENT INITIALIZATION
-    const SUPABASE_URL = "https://hhnbayuaozzykbtvfvdk.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhobmJheXVhb3p6eWtidHZmdmRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyNjIwNDgsImV4cCI6MjEwNzgzODA0OH0.3MsK9nEKRjbXPqUBRj9-hBdn5TkcIcKUXUvqYeNDt5s";
-    
-    let supabaseClient = null;
-    try {
-      if (window.supabase) {
-        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      }
-    } catch(e) {}
+    // No database client or privileged credentials are embedded in this public app.
+    // Cloud access remains disabled until authenticated per-doctor APIs and RLS policies are deployed.
+    const supabaseClient = null;
 
     // YOUR ACTIVE LIVE RAZORPAY KEY
     const RAZORPAY_KEY_ID = ""; // Set only after backend-verified checkout is implemented.
@@ -815,6 +807,7 @@
     ];
 
     let currentDoctor = null;
+    let sessionCases = []; // Patient data remains in memory only until secure cloud storage is ready.
     let currentStep = 1;
     let selectedRubricsList = [];
     let selectedPlan = { tokens: 150, price: 499 };
@@ -870,20 +863,7 @@
     }
 
     async function refreshDoctorBalance() {
-      const icon = document.getElementById("syncBalIcon");
-      if (icon) icon.classList.add("fa-spin");
-      if (currentDoctor && currentDoctor.reg_no && supabaseClient) {
-        try {
-          const { data } = await supabaseClient.from('doctors').select('*').eq('reg_no', currentDoctor.reg_no).single();
-          if (data) {
-            currentDoctor = data;
-            document.getElementById("headerTokenCount").innerText = currentDoctor.ai_tokens;
-            document.getElementById("walletModalTokens").innerText = currentDoctor.ai_tokens;
-            localStorage.setItem("homoeo_current_doctor", JSON.stringify(data));
-          }
-        } catch(e) {}
-      }
-      setTimeout(() => { if (icon) icon.classList.remove("fa-spin"); }, 400);
+      alert("क्लाउड बैलेंस सिंक सुरक्षित सर्वर API और डॉक्टर प्रमाणीकरण तैयार होने तक बंद है।");
     }
 
     // ==================== NAVIGATION & WORKSPACE ====================
@@ -1002,6 +982,10 @@
 
     // ADVANCED REPERTORIZATION: SYNTHESIS + VES + GNM + "OTHER SYMPTOMS"
     async function executeAIRepertorization() {
+      if (!currentDoctor || !currentDoctor.reg_no) {
+        alert("सुरक्षित डॉक्टर लॉगिन उपलब्ध होने तक यह क्रिया बंद है।");
+        return;
+      }
       if ((currentDoctor.ai_tokens || 0) <= 0) {
         alert("AI Tokens समाप्त हो गए हैं! कृपया रिचार्ज करें।");
         openRechargeModal();
@@ -1012,11 +996,8 @@
       document.getElementById("headerTokenCount").innerText = currentDoctor.ai_tokens;
       document.getElementById("walletModalTokens").innerText = currentDoctor.ai_tokens;
 
-      if (supabaseClient) {
-        try {
-          await supabaseClient.from('doctors').update({ ai_tokens: currentDoctor.ai_tokens }).eq('reg_no', currentDoctor.reg_no);
-        } catch (e) {}
-      }
+      // Client-side token balances are not authoritative; never write balances directly from the app.
+
 
       const patientThermal = document.getElementById("pThermalVal").value;
       const patientThirst = document.getElementById("pThirstVal").value;
@@ -1208,23 +1189,8 @@
         saved_at: new Date().toLocaleDateString('hi-IN') + ' ' + new Date().toLocaleTimeString('hi-IN', { hour: '2-digit', minute: '2-digit' })
       };
 
-      try {
-        let cases = JSON.parse(localStorage.getItem("khc_saved_cases") || "[]");
-        cases.unshift(caseData);
-        localStorage.setItem("khc_saved_cases", JSON.stringify(cases));
-      } catch (e) {}
-
-      if (supabaseClient) {
-        supabaseClient.from('patient_cases').insert([{
-          doctor_reg: caseData.doctor_reg,
-          patient_name: caseData.patient_name,
-          patient_phone: caseData.patient_phone,
-          diagnosis: caseData.diagnosis,
-          selected_rubrics: caseData.selected_rubrics,
-          prescription: caseData.prescription,
-          diet_notes: caseData.diet_notes
-        }]).then(() => {}).catch(() => {});
-      }
+      // Patient data is sensitive health information. Keep it only in memory until secure per-doctor cloud storage is ready.
+      sessionCases.unshift(caseData);
     }
 
     function finishCaseTaking() {
@@ -1271,7 +1237,7 @@
 
       let cases = [];
       try {
-        cases = JSON.parse(localStorage.getItem("khc_saved_cases") || "[]");
+        cases = [...sessionCases];
       } catch (e) { cases = []; }
 
       if (filterQuery) {
@@ -1377,7 +1343,7 @@
       if (!confirm("क्या आप इस केस हिस्ट्री को हटाना चाहते हैं?")) return;
       let cases = JSON.parse(localStorage.getItem("khc_saved_cases") || "[]");
       cases = cases.filter(c => c.id !== caseId);
-      localStorage.setItem("khc_saved_cases", JSON.stringify(cases));
+      sessionCases = cases;
       renderCasesHistoryList(document.getElementById("historySearchInput").value.trim());
     }
 
@@ -1525,14 +1491,12 @@
     }
 
     function copyUpiId() {
-      navigator.clipboard.writeText("jyotidr.19822005-1@oksbi").then(() => {
-        alert("UPI ID कॉपी हो गई: jyotidr.19822005-1@oksbi");
-      });
+      alert("भुगतान सुविधा अभी बंद है।");
     }
 
-    function openRechargeModal() { 
-      document.getElementById("rechargeModal").classList.remove("hidden");
-      updateRechargeQr(selectedPlan.price);
+    function openRechargeModal() {
+      alert("रिचार्ज अस्थायी रूप से बंद है। सुरक्षित सर्वर-साइड भुगतान सत्यापन सक्षम होने के बाद इसे चालू किया जाएगा।");
+      return;
     }
     
     function closeRechargeModal() { 
@@ -1552,8 +1516,7 @@
     }
 
     function requestAdminRechargeWA() {
-      const msg = `*AI Token Recharge Request*\nDoctor: ${currentDoctor ? currentDoctor.doctor_name : 'Physician'} (${currentDoctor ? currentDoctor.reg_no : 'ADMIN-09'})\nPack: ${selectedPlan.tokens} Tokens (₹${selectedPlan.price})\nKey ID: rzp_live_bIn9zAJeWUjqOX`;
-      window.open(`https://wa.me/919235551713?text=${encodeURIComponent(msg)}`, "_blank");
+      alert("रिचार्ज अनुरोध अभी बंद है。");
     }
 
     // AUTO-BOOT: do not enumerate doctor records with the public anon key.
@@ -1567,6 +1530,7 @@
       // Fail closed: never restore an unverified localStorage doctor session.
       try { localStorage.removeItem("homoeo_current_doctor"); } catch(e) {}
       try { localStorage.removeItem("homoeo_master_doctors_db"); } catch(e) {}
+      // Legacy patient archives are not loaded. Existing archives are not auto-deleted to avoid silent data loss.
     });
   </script>
 </body>
