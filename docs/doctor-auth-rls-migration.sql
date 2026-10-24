@@ -1,4 +1,4 @@
--- Review before applying to the live project. Run only after taking a database backup.
+-- Migration proposal. Review before applying to any environment; take a database backup first.
 -- This migration changes access control and will block legacy PIN-based browser access.
 BEGIN;
 
@@ -70,7 +70,7 @@ CREATE POLICY patient_cases_delete_own ON public.patient_cases
 -- Remove broad table grants first, then expose only safe doctor profile fields.
 REVOKE ALL ON public.doctors FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON public.patient_cases FROM PUBLIC, anon, authenticated;
-GRANT SELECT (id, doctor_name, clinic_name, reg_no, whatsapp_no, ai_tokens, status, created_at)
+GRANT SELECT (id, doctor_name, clinic_name, reg_no, whatsapp_no, ai_tokens, status, created_at, auth_user_id)
   ON public.doctors TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.patient_cases TO authenticated;
 
