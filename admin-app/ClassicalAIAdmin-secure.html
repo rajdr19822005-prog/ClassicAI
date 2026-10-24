@@ -33,7 +33,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;p
 <h2>Administrator sign-in</h2><div class="grid">
 <div><label for="email">Admin email</label><input id="email" type="email" autocomplete="username"></div>
 <div><label for="password">Password</label><input id="password" type="password" autocomplete="current-password"></div>
-</div><button id="signIn">Sign in</button><p class="muted">The account must already exist and have trusted Supabase Auth app_metadata role set to admin. This page cannot grant itself admin rights.</p>
+</div><button id="signIn">Sign in</button> <button id="forgotPassword" class="secondary" type="button">Forgot password?</button><p class="muted">The account must already exist and have trusted Supabase Auth app_metadata role set to admin. This page cannot grant itself admin rights.</p><p id="recoveryStatus" class="status" role="status"></p><div id="resetPanel" class="hidden"><h2>Set a new password</h2><label for="newPassword">New password</label><input id="newPassword" type="password" autocomplete="new-password" minlength="10"><label for="confirmPassword">Confirm new password</label><input id="confirmPassword" type="password" autocomplete="new-password" minlength="10"><button id="saveNewPassword" type="button">Update password</button></div>
 </section>
 
 <section id="dashboard" class="hidden">
@@ -59,6 +59,40 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;p
     edgeUrl=url+"/functions/v1/doctor-admin";
     $("loginCard").classList.remove("hidden");
     $("config").classList.add("hidden");
+    client.auth.onAuthStateChange((event) => {
+      if(event === "PASSWORD_RECOVERY") {
+        $("resetPanel").classList.remove("hidden");
+        $("recoveryStatus").textContent="Recovery link accepted. Choose a new password below.";
+      }
+    });
+    if(location.hash.includes("type=recovery")) {
+      $("resetPanel").classList.remove("hidden");
+      $("recoveryStatus").textContent="Recovery link detected. If it is valid, enter your new password below.";
+    }
+  });
+  $("forgotPassword").addEventListener("click", async () => {
+    if(!client) { alert("Connect to Supabase first."); return; }
+    const email=$("email").value.trim();
+    if(!email) { alert("Enter the administrator email first."); $("email").focus(); return; }
+    try {
+      $("recoveryStatus").textContent="Sending password-reset email…";
+      const {error}=await client.auth.resetPasswordForEmail(email,{redirectTo:"https://classicai.vercel.app/admin-app/ClassicalAIAdmin-secure.html"});
+      if(error) throw error;
+      $("recoveryStatus").textContent="If this email belongs to an account, a password-reset link has been sent. Open the newest email promptly. The link returns to this secure admin page.";
+    } catch(e) { $("recoveryStatus").textContent="Could not request reset: "+e.message; }
+  });
+  $("saveNewPassword").addEventListener("click", async () => {
+    if(!client) return;
+    const password=$("newPassword").value;
+    if(password.length<10) { alert("Use a password of at least 10 characters."); return; }
+    if(password!==$("confirmPassword").value) { alert("Passwords do not match."); return; }
+    try {
+      const {error}=await client.auth.updateUser({password});
+      if(error) throw error;
+      $("recoveryStatus").textContent="Password updated. Return to administrator sign-in and sign in with the new password.";
+      $("resetPanel").classList.add("hidden"); $("newPassword").value=""; $("confirmPassword").value="";
+      await client.auth.signOut();
+    } catch(e) { $("recoveryStatus").textContent="Password update failed: "+e.message; }
   });
   $("signIn").addEventListener("click", async () => {
     if (!client) return;
