@@ -866,5 +866,6 @@
       // Fail closed: never restore an unverified localStorage doctor session.
       try { localStorage.removeItem("homoeo_current_doctor"); } catch(e) {}
       try { localStorage.removeItem("homoeo_master_doctors_db"); } catch(e) {}
-      // Legacy patient archives are not loaded. Existing archives are not auto-deleted to avoid silent data loss.\n      restoreAuthenticatedDoctor();
+      // Legacy patient archives are not loaded. Existing archives are not auto-deleted to avoid silent data loss.
+      restoreAuthenticatedDoctor();
     });
