@@ -22,3 +22,5 @@ flutter:
   assets:
     - assets/web/index.html
     - assets/web/app.js
+    - assets/web/supabase-config.js
+    - admin-app/ClassicalAIAdmin-secure.html
