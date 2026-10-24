@@ -1,5 +1,5 @@
 name: classicai
-description: ClassicAI Android app starter.
+description: ClassicalAI Android app wrapping the supplied HTML interface.
 publish_to: 'none'
 version: 0.1.0+1
 
@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
+  webview_flutter: ^4.10.0
 
 dev_dependencies:
   flutter_test:
@@ -18,3 +19,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/web/index.html
