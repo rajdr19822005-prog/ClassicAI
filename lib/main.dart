@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-const classicAiAppTitle = 'ClassicalAI';
+const appKind = String.fromEnvironment('APP_KIND', defaultValue: 'doctor');
+const isAdminApp = appKind == 'admin';
+const classicAiAppTitle = isAdminApp ? 'ClassicalAI Admin' : 'ClassicalAI Doctor';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -56,7 +58,8 @@ class _ClassicAiWebAppState extends State<ClassicAiWebApp> {
               return NavigationDecision.navigate;
             }
             if (uri.scheme == 'https' &&
-                const {'wa.me', 'api.whatsapp.com'}.contains(uri.host)) {
+                (const {'wa.me', 'api.whatsapp.com', 'classicai.vercel.app'}
+                    .contains(uri.host))) {
               return NavigationDecision.navigate;
             }
             return NavigationDecision.prevent;
@@ -82,7 +85,9 @@ class _ClassicAiWebAppState extends State<ClassicAiWebApp> {
           },
         ),
       )
-      ..loadFlutterAsset('assets/web/index.html');
+      ..loadFlutterAsset(isAdminApp
+          ? 'admin-app/ClassicalAIAdmin-secure.html'
+          : 'assets/web/index.html');
   }
 
   @override
