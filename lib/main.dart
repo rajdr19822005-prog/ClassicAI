@@ -45,6 +45,22 @@ class _ClassicAiWebAppState extends State<ClassicAiWebApp> {
       ..setBackgroundColor(const Color(0xFFFFFFFF))
       ..setNavigationDelegate(
         NavigationDelegate(
+          onNavigationRequest: (request) {
+            final uri = Uri.tryParse(request.url);
+            if (uri == null) return NavigationDecision.prevent;
+
+            // Keep the WebView on bundled app assets. Permit only explicit user-initiated
+            // WhatsApp links; block arbitrary external pages and non-HTTPS schemes.
+            if (uri.scheme == 'file' &&
+                uri.path.startsWith('/android_asset/flutter_assets/')) {
+              return NavigationDecision.navigate;
+            }
+            if (uri.scheme == 'https' &&
+                const {'wa.me', 'api.whatsapp.com'}.contains(uri.host)) {
+              return NavigationDecision.navigate;
+            }
+            return NavigationDecision.prevent;
+          },
           onPageStarted: (_) {
             if (mounted) {
               setState(() {
