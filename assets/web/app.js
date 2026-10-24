@@ -131,7 +131,7 @@
       if (button) { button.disabled = true; button.innerText = "Sending…"; }
       try {
         const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-          redirectTo: "https://classicai.vercel.app/assets/web/index.html"
+          redirectTo: "https://classicai.vercel.app"
         });
         if (error) throw error;
         if (err) {
