@@ -15,19 +15,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
-
       - name: Generate Android platform files
         run: |
           flutter create --platforms=android --org=com.classicai .
@@ -38,19 +35,14 @@ jobs:
           s = s.replace('applicationId = "com.classicai.classicai"', 'applicationId = "com.classicai.mobile"')
           p.write_text(s)
           PY
-
       - name: Install dependencies
         run: flutter pub get
-
       - name: Analyze Dart code
         run: flutter analyze
-
-      - name: Run widget tests
+      - name: Run tests
         run: flutter test
-
-      - name: Build debug APK for smoke testing
+      - name: Build debug APK
         run: flutter build apk --debug
-
       - name: Upload debug APK (not for Play upload)
         uses: actions/upload-artifact@v4
         with:
@@ -65,19 +57,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
-
       - name: Check release signing secrets
         shell: bash
         env:
@@ -90,7 +79,6 @@ jobs:
           test -n "$ANDROID_KEY_ALIAS" || { echo 'Missing ANDROID_KEY_ALIAS repository secret'; exit 1; }
           test -n "$ANDROID_KEY_PASSWORD" || { echo 'Missing ANDROID_KEY_PASSWORD repository secret'; exit 1; }
           test -n "$ANDROID_STORE_PASSWORD" || { echo 'Missing ANDROID_STORE_PASSWORD repository secret'; exit 1; }
-
       - name: Generate Android platform files and configure signing
         shell: bash
         env:
@@ -110,7 +98,7 @@ jobs:
               s = 'import java.io.FileInputStream\nimport java.util.Properties\n\n' + s
           match = re.search(r'plugins\s*\{.*?\n\}', s, re.S)
           if not match:
-              raise SystemExit('Could not locate Gradle plugins block; refusing to patch unknown template.')
+              raise SystemExit('Could not locate Gradle plugins block.')
           if 'val keystoreProperties = Properties()' not in s:
               setup = '\n\nval keystoreProperties = Properties()\nval keystorePropertiesFile = rootProject.file("key.properties")\nif (keystorePropertiesFile.exists()) {\n    keystoreProperties.load(FileInputStream(keystorePropertiesFile))\n}\n'
               s = s[:match.end()] + setup + s[match.end():]
@@ -124,15 +112,12 @@ jobs:
           storePassword=$ANDROID_STORE_PASSWORD
           keyPassword=$ANDROID_KEY_PASSWORD
           keyAlias=$ANDROID_KEY_ALIAS
-          storeFile=app/upload-keystore.jks
+          storeFile=upload-keystore.jks
           EOF
-
       - name: Install dependencies
         run: flutter pub get
-
       - name: Build signed Android App Bundle
         run: flutter build appbundle --release
-
       - name: Upload signed AAB
         uses: actions/upload-artifact@v4
         with:
