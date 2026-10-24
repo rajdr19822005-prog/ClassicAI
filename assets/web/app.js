@@ -608,15 +608,35 @@
         container.appendChild(card);
       });
 
+      // Charge only after the calculation and result cards have been generated successfully.
+      // The authenticated server endpoint performs an atomic balance update in Supabase.
+      if (!supabaseClient) throw new Error("Secure token service is unavailable. Please sign in again.");
+      const { data: tokenResult, error: tokenError } = await supabaseClient.functions.invoke("consume-repertorization-token", {
+        body: {}
+      });
+      if (tokenError) {
+        let message = tokenError.message || "Could not verify your token balance.";
+        try {
+          const details = await tokenError.context?.json();
+          if (details?.error) message = details.error;
+        } catch (_) {}
+        throw new Error(message);
+      }
+      if (!tokenResult?.success) {
+        throw new Error(tokenResult?.error || "Token balance could not be updated.");
+      }
+      currentDoctor.ai_tokens = Number(tokenResult.remaining_tokens);
+      const tokenCount = document.getElementById("headerTokenCount");
+      if (tokenCount) tokenCount.innerText = String(currentDoctor.ai_tokens);
       document.getElementById("repertorySheetContainer").classList.remove("hidden");
       } catch (error) {
         console.error("ClassicAI repertorization failed:", error);
-        alert("Repertorization could not finish: " + (error?.message || "Unexpected error") + ". No credits were deducted. Please check the case fields and try again.");
+        alert("Repertorization could not finish: " + (error?.message || "Unexpected error") + ". If you are unsure whether the balance changed, check with the administrator before retrying.");
       } finally {
         window.__classicaiRepertorizationRunning = false;
         if (actionButton) {
           actionButton.disabled = false;
-          actionButton.innerHTML = actionButton.dataset.originalLabel || '<i class="fa-solid fa-brain text-sm"></i> Run Repertorization & Generate Totality Matrix (-1 Token)';
+          actionButton.innerHTML = actionButton.dataset.originalLabel || '<i class="fa-solid fa-brain text-sm"></i> Run Repertorization & Generate Totality Matrix';
           delete actionButton.dataset.originalLabel;
         }
       }
