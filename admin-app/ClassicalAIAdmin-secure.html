@@ -21,12 +21,12 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;p
 <div class="notice">Do not use for real patient care until the Edge Function is deployed, the reviewed RLS migration is applied, and security tests pass.</div>
 
 <section id="config" class="card">
-<h2>One-time setup</h2>
-<p class="muted">Set the Supabase project URL and publishable/anon key below. These are browser-visible values; never paste a service-role or secret key here. The Edge Function must allow this page's exact HTTPS origin.</p>
+<h2>Connection settings</h2>
+<p class="muted">The project URL and public key load automatically from the site configuration. Manual connection is only a fallback if that configuration fails. Never enter a service-role or secret key here.</p>
 <div class="grid">
 <div><label for="projectUrl">Supabase project URL</label><input id="projectUrl" placeholder="https://YOUR_PROJECT.supabase.co"></div>
 <div><label for="publicKey">Supabase publishable key or legacy anon key</label><input id="publicKey" placeholder="sb_publishable_… or legacy anon key" autocomplete="off"></div>
-</div><button id="saveConfig">Connect</button><p class="muted">Values are kept in this page's memory only and are not saved to local storage.</p>
+</div><button id="saveConfig">Connect</button><p class="muted">Automatic configuration is used whenever available; admin sign-in sessions are securely persisted by the Supabase client in this browser.</p>
 </section>
 
 <section id="loginCard" class="card hidden">
@@ -43,6 +43,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;p
 <div class="card"><h2>Doctor directory</h2><div class="tablewrap"><table><thead><tr><th>Doctor</th><th>Registration</th><th>Status</th><th>Tokens</th><th>Auth link</th><th>Actions</th></tr></thead><tbody id="doctors"><tr><td colspan="6">Sign in and refresh to load doctors.</td></tr></tbody></table></div></div>
 </section>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0"></script>
+<script src="../assets/web/supabase-config.js"></script>
 <script>
 (() => {
   let client = null;
@@ -50,15 +51,20 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;p
   const $ = id => document.getElementById(id);
   const setStatus = msg => { const el=$("status"); if(el) el.textContent=msg; };
   const safe = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  $("saveConfig").addEventListener("click", async () => {
-    const url=$("projectUrl").value.trim().replace(/\/$/,"");
-    const key=$("publicKey").value.trim();
-    if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url) || !key) { alert("Enter a valid Supabase URL and publishable/anon key."); return; }
-    if (!window.supabase?.createClient) { alert("Supabase client library failed to load."); return; }
-    client=window.supabase.createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
+  function connect(url, key) {
+    if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url) || !key) {
+      $("configStatus").textContent = "Invalid Supabase configuration. Check the public site config.";
+      return;
+    }
+    if (!window.supabase?.createClient) {
+      $("configStatus").textContent = "Supabase client library failed to load.";
+      return;
+    }
+    client=window.supabase.createClient(url,key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
     edgeUrl=url+"/functions/v1/doctor-admin";
     $("loginCard").classList.remove("hidden");
     $("config").classList.add("hidden");
+    $("configStatus").textContent="Connected to the configured Supabase project.";
     client.auth.onAuthStateChange((event) => {
       if(event === "PASSWORD_RECOVERY") {
         $("resetPanel").classList.remove("hidden");
@@ -69,7 +75,35 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;p
       $("resetPanel").classList.remove("hidden");
       $("recoveryStatus").textContent="Recovery link detected. If it is valid, enter your new password below.";
     }
+    client.auth.getSession().then(async ({data}) => {
+      if (!data.session) return;
+      const {data:ud,error:ue}=await client.auth.getUser();
+      if (ue || ud.user?.app_metadata?.role!=="admin") { await client.auth.signOut(); return; }
+      $("loginCard").classList.add("hidden");
+      $("dashboard").classList.remove("hidden");
+      await loadDoctors();
+    }).catch(() => {});
+  }
+  $("saveConfig").addEventListener("click", () => {
+    const url=$("projectUrl").value.trim().replace(/\/$/,"");
+    const key=$("publicKey").value.trim();
+    if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url) || !key) {
+      alert("Enter a valid Supabase URL and publishable/anon key.");
+      return;
+    }
+    connect(url,key);
   });
+  (() => {
+    const url=window.CLASSICAI_SUPABASE_URL;
+    const key=window.CLASSICAI_SUPABASE_PUBLISHABLE_KEY;
+    if (url && key && window.supabase?.createClient) {
+      connect(url,key);
+    } else {
+      $("configStatus").textContent="Automatic configuration did not load. Use manual connection below; only use a public publishable/anon key.";
+      $("projectUrl").value=url || "";
+      $("publicKey").value=key || "";
+    }
+  })();
   $("forgotPassword").addEventListener("click", async () => {
     if(!client) { alert("Connect to Supabase first."); return; }
     const email=$("email").value.trim();
