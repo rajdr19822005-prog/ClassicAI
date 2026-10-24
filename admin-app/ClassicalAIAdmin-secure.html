@@ -39,7 +39,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;p
 <section id="dashboard" class="hidden">
 <div class="card"><div class="grid" style="align-items:center"><div><h2>Doctor approvals</h2><p class="muted">All privileged changes are sent to the authenticated Edge Function.</p></div><div><button id="refresh" class="secondary">Refresh list</button> <button id="signOut" class="secondary">Sign out</button></div></div><p id="status" class="status" role="status"></p></div>
 <div class="card"><h2>Invite approved doctor</h2><p class="muted">Use the existing doctor's database row ID and email. The function sends an Auth invitation and links the account to the approved doctor row. No reusable PIN is created.</p>
-<div class="grid"><div><label for="doctorId">Doctor row ID</label><input id="doctorId" type="number" min="1" step="1"></div><div><label for="doctorEmail">Doctor email</label><input id="doctorEmail" type="email" autocomplete="off"></div></div><button id="invite">Send invitation and link account</button></div>
+<div class="grid"><div><label for="doctorId">Doctor row ID</label><input id="doctorId" type="number" min="1" step="1"></div><div><label for="doctorEmail">Doctor email</label><input id="doctorEmail" type="email" autocomplete="off"></div></div><button id="invite" type="button">Send invitation and link account</button><p id="inviteStatus" class="status" role="status"></p></div>
 <div class="card"><h2>Doctor directory</h2><div class="tablewrap"><table><thead><tr><th>Doctor</th><th>Registration</th><th>Status</th><th>Tokens</th><th>Auth link</th><th>Actions</th></tr></thead><tbody id="doctors"><tr><td colspan="6">Sign in and refresh to load doctors.</td></tr></tbody></table></div></div>
 </section>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0"></script>
@@ -60,7 +60,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;p
       $("configStatus").textContent = "Supabase client library failed to load.";
       return;
     }
-    client=window.supabase.createClient(url,key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+    $("projectUrl").value=url;\n    $("publicKey").value=key;\n    client=window.supabase.createClient(url,key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
     edgeUrl=url+"/functions/v1/doctor-admin";
     $("loginCard").classList.remove("hidden");
     $("config").classList.add("hidden");
