@@ -17,6 +17,10 @@ Project `medical-ai` (ref `hhnbayuaozzykbtvfvdk`) is active. It contains `public
 
 **No live database changes were made.** Enabling RLS without ownership policies could lock out legitimate users. Review `docs/supabase-security-review.sql` with the account owner before applying it. The proposal deliberately requires a Supabase Auth user-to-doctor mapping before any row becomes visible.
 
+## Public repository history
+
+The GitHub repository is public, so older commits can still be inspected even though the current app no longer contains the old client-side doctor bypass. If public source history is not intended, make the repository private or arrange a carefully planned history rewrite; then invalidate the legacy PIN and confirm no old deployment is serving the previous code. Rewriting history changes commit IDs and can disrupt collaborators, so it is not performed automatically.
+
 ## Required before secure cloud functionality
 
 1. Create a Supabase Auth identity for each doctor and link it to `doctors.auth_user_id`; do not store plaintext PINs.
