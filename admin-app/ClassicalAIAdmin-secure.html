@@ -60,7 +60,8 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;p
       $("configStatus").textContent = "Supabase client library failed to load.";
       return;
     }
-    $("projectUrl").value=url;\n    $("publicKey").value=key;\n    client=window.supabase.createClient(url,key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+    $("projectUrl").value=url;
+    $("publicKey").value=key;\n    client=window.supabase.createClient(url,key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
     edgeUrl=url+"/functions/v1/doctor-admin";
     $("loginCard").classList.remove("hidden");
     $("config").classList.add("hidden");
@@ -185,10 +186,19 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;p
     }catch(err){alert(err.message);setStatus(err.message);}
   });
   $("invite").addEventListener("click",async()=>{
+    const button=$("invite");
+    const doctorId=Number($("doctorId").value);
+    const email=$("doctorEmail").value.trim();
+    const inviteStatus=$("inviteStatus");
+    if(!Number.isInteger(doctorId)||doctorId<1){inviteStatus.textContent="Enter a valid doctor row ID."; $("doctorId").focus(); return;}
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){inviteStatus.textContent="Enter a valid doctor email address."; $("doctorEmail").focus(); return;}
+    button.disabled=true; button.textContent="Sending invitation…"; inviteStatus.textContent="Checking the doctor record and sending the invitation…";
     try{
-      const result=await callApi({action:"invite_doctor",doctorId:Number($("doctorId").value),email:$("doctorEmail").value.trim()});
-      setStatus(result.message||"Invitation sent."); await loadDoctors();
-    }catch(e){setStatus(e.message);}
+      const result=await callApi({action:"invite_doctor",doctorId,email});
+      inviteStatus.textContent=result.message||"Invitation request completed.";
+      setStatus(result.message||"Invitation request completed."); await loadDoctors();
+    }catch(e){inviteStatus.textContent="Invitation failed: "+e.message; setStatus("Invitation failed: "+e.message);}
+    finally{button.disabled=false; button.textContent="Send invitation and link account";}
   });
   $("refresh").addEventListener("click",loadDoctors);
   $("signOut").addEventListener("click",async()=>{await client.auth.signOut();$("dashboard").classList.add("hidden");$("loginCard").classList.remove("hidden");setStatus("Signed out.");});
