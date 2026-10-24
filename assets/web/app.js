@@ -126,8 +126,8 @@
 
       document.getElementById("headerClinic").innerText = currentDoctor.clinic_name || "ClassicalAI_ver_3.0";
       document.getElementById("headerDoc").innerText = `${currentDoctor.doctor_name} (${currentDoctor.reg_no})`;
-      document.getElementById("headerTokenCount").innerText = currentDoctor.ai_tokens || 100;
-      document.getElementById("walletModalTokens").innerText = currentDoctor.ai_tokens || 100;
+      document.getElementById("headerTokenCount").innerText = currentDoctor.ai_tokens ?? 0;
+      document.getElementById("walletModalTokens").innerText = currentDoctor.ai_tokens ?? 0;
 
       onDiagnosisChange();
 
@@ -449,7 +449,7 @@
 
       const caseData = {
         id: Date.now(),
-        doctor_reg: currentDoctor ? currentDoctor.reg_no : "ADMIN-09",
+        doctor_reg: currentDoctor ? currentDoctor.reg_no : "—",
         patient_name: pName || "अज्ञात रोगी (Unnamed)",
         patient_age: document.getElementById("pAge").value || "--",
         patient_gender: document.getElementById("pGender").value,
@@ -701,7 +701,7 @@
 
       document.getElementById("pdfClinicName").innerText = currentDoctor ? currentDoctor.clinic_name : "ClassicalAI_ver_3.0";
       document.getElementById("pdfDocName").innerText = currentDoctor ? currentDoctor.doctor_name : "Classical Homeopathic Physician";
-      document.getElementById("pdfDoctorRegNo").innerText = currentDoctor ? currentDoctor.reg_no : "ADMIN-09";
+      document.getElementById("pdfDoctorRegNo").innerText = currentDoctor ? currentDoctor.reg_no : "—";
       document.getElementById("pdfPrescriptionDate").innerText = new Date().toLocaleDateString('hi-IN');
       document.getElementById("pdfPatientName").innerText = name;
       document.getElementById("pdfPatientAgeGender").innerText = `${age} Yrs / ${gender}`;
