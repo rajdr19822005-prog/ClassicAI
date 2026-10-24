@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ClassicalAI Admin — Secure Preview</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#172033;background:#f1f5f9}
+body{margin:0}.wrap{max-width:1000px;margin:auto;padding:20px}.card{background:#fff;border:1px solid #dbe3ed;border-radius:14px;padding:18px;margin:14px 0;box-shadow:0 2px 8px #0f172a0a}
+h1{margin:0 0 5px;color:#115e59}h2{font-size:18px;margin:0 0 12px}p{line-height:1.45}.muted{color:#64748b;font-size:13px}
+label{display:block;font-size:13px;font-weight:650;margin:10px 0 5px}
+input,select,button{font:inherit;border-radius:9px;padding:10px;border:1px solid #cbd5e1}input,select{width:100%;box-sizing:border-box}
+button{cursor:pointer;background:#0f766e;color:#fff;border:0;font-weight:700;margin-top:10px}button.secondary{background:#e2e8f0;color:#0f172a}button.danger{background:#b91c1c}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.hidden{display:none!important}
+.notice{padding:10px 12px;border-radius:9px;background:#fef3c7;color:#78350f}.status{font-size:13px;margin-top:10px;white-space:pre-wrap}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:9px;border-bottom:1px solid #e2e8f0;vertical-align:top}
+.tablewrap{overflow:auto}.doctor-actions{display:flex;gap:6px;flex-wrap:wrap}.doctor-actions button{font-size:12px;padding:7px}
+</style>
+</head>
+<body><main class="wrap">
+<header><h1>ClassicalAI Admin</h1><p class="muted">Secure integration preview · no PIN storage · no service-role key in this page</p></header>
+<div class="notice">Do not use for real patient care until the Edge Function is deployed, the reviewed RLS migration is applied, and security tests pass.</div>
+
+<section id="config" class="card">
+<h2>One-time setup</h2>
+<p class="muted">Set the Supabase project URL and publishable/anon key below. These are browser-visible values; never paste a service-role or secret key here. The Edge Function must allow this page's exact HTTPS origin.</p>
+<div class="grid">
+<div><label for="projectUrl">Supabase project URL</label><input id="projectUrl" placeholder="https://YOUR_PROJECT.supabase.co"></div>
+<div><label for="publicKey">Supabase publishable key or legacy anon key</label><input id="publicKey" placeholder="sb_publishable_… or legacy anon key" autocomplete="off"></div>
+</div><button id="saveConfig">Connect</button><p class="muted">Values are kept in this page's memory only and are not saved to local storage.</p>
+</section>
+
+<section id="loginCard" class="card hidden">
+<h2>Administrator sign-in</h2><div class="grid">
+<div><label for="email">Admin email</label><input id="email" type="email" autocomplete="username"></div>
+<div><label for="password">Password</label><input id="password" type="password" autocomplete="current-password"></div>
+</div><button id="signIn">Sign in</button><p class="muted">The account must already exist and have trusted Supabase Auth app_metadata role set to admin. This page cannot grant itself admin rights.</p>
+</section>
+
+<section id="dashboard" class="hidden">
+<div class="card"><div class="grid" style="align-items:center"><div><h2>Doctor approvals</h2><p class="muted">All privileged changes are sent to the authenticated Edge Function.</p></div><div><button id="refresh" class="secondary">Refresh list</button> <button id="signOut" class="secondary">Sign out</button></div></div><p id="status" class="status" role="status"></p></div>
+<div class="card"><h2>Invite approved doctor</h2><p class="muted">Use the existing doctor's database row ID and email. The function sends an Auth invitation and links the account to the approved doctor row. No reusable PIN is created.</p>
+<div class="grid"><div><label for="doctorId">Doctor row ID</label><input id="doctorId" type="number" min="1" step="1"></div><div><label for="doctorEmail">Doctor email</label><input id="doctorEmail" type="email" autocomplete="off"></div></div><button id="invite">Send invitation and link account</button></div>
+<div class="card"><h2>Doctor directory</h2><div class="tablewrap"><table><thead><tr><th>Doctor</th><th>Registration</th><th>Status</th><th>Tokens</th><th>Auth link</th><th>Actions</th></tr></thead><tbody id="doctors"><tr><td colspan="6">Sign in and refresh to load doctors.</td></tr></tbody></table></div></div>
+</section>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4"></script>
+<script>
+(() => {
+  let client = null;
+  let edgeUrl = null;
+  const $ = id => document.getElementById(id);
+  const setStatus = msg => { const el=$("status"); if(el) el.textContent=msg; };
+  const safe = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  $("saveConfig").addEventListener("click", async () => {
+    const url=$("projectUrl").value.trim().replace(/\/$/,"");
+    const key=$("publicKey").value.trim();
+    if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url) || !key) { alert("Enter a valid Supabase URL and publishable/anon key."); return; }
+    if (!window.supabase?.createClient) { alert("Supabase client library failed to load."); return; }
+    client=window.supabase.createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
+    edgeUrl=url+"/functions/v1/doctor-admin";
+    $("loginCard").classList.remove("hidden");
+    $("config").classList.add("hidden");
+  });
+  $("signIn").addEventListener("click", async () => {
+    if (!client) return;
+    const {data,error}=await client.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});
+    if(error){alert("Sign-in failed: "+error.message);return;}
+    const {data:ud,error:ue}=await client.auth.getUser();
+    if(ue || ud.user?.app_metadata?.role!=="admin"){
+      await client.auth.signOut();
+      alert("This account is not configured as an administrator. Ask the project owner to assign the role securely.");
+      return;
+    }
+    $("loginCard").classList.add("hidden"); $("dashboard").classList.remove("hidden");
+    await loadDoctors();
+  });
+  async function callApi(payload) {
+    const {data:{session}}=await client.auth.getSession();
+    if(!session?.access_token) throw new Error("Session expired. Sign in again.");
+    const response=await fetch(edgeUrl,{method:"POST",headers:{"Content-Type":"application/json","apikey":$("publicKey").value.trim(),"Authorization":"Bearer "+session.access_token},body:JSON.stringify(payload)});
+    const body=await response.json().catch(()=>({}));
+    if(!response.ok) throw new Error(body.error || "Request failed ("+response.status+")");
+    return body;
+  }
+  async function loadDoctors(){
+    try{
+      setStatus("Loading doctors…");
+      const result=await callApi({action:"list_doctors"});
+      const rows=result.doctors||[];
+      $("doctors").innerHTML=rows.length?rows.map(d=>'<tr><td><strong>'+safe(d.doctor_name)+'</strong><br><span class="muted">'+safe(d.clinic_name)+'</span></td><td>'+safe(d.reg_no)+'</td><td>'+safe(d.status)+'</td><td>'+safe(d.ai_tokens)+'</td><td>'+(d.auth_user_id?"Linked":"Not linked")+'</td><td><div class="doctor-actions"><button data-act="invite" data-id="'+safe(d.id)+'" data-reg="'+safe(d.reg_no)+'" class="secondary">Invite</button><button data-act="status" data-id="'+safe(d.id)+'" data-status="'+(d.status==="Active"?"Inactive":"Active")+'" class="secondary">'+(d.status==="Active"?"Deactivate":"Activate")+'</button><button data-act="tokens" data-id="'+safe(d.id)+'" class="secondary">Set tokens</button></div></td></tr>').join(""):'<tr><td colspan="6">No doctor records found.</td></tr>';
+      setStatus("Loaded "+rows.length+" doctor record(s).");
+    }catch(e){setStatus(e.message);}
+  }
+  $("doctors").addEventListener("click", async e=>{
+    const b=e.target.closest("button[data-act]"); if(!b)return;
+    const id=Number(b.dataset.id);
+    try{
+      if(b.dataset.act==="invite"){
+        $("doctorId").value=id;
+        const email=prompt("Enter the doctor's email address:");
+        if(!email)return;
+        const result=await callApi({action:"invite_doctor",doctorId:id,email});
+        alert(result.message||"Invitation sent."); await loadDoctors();
+      } else if(b.dataset.act==="status"){
+        if(!confirm("Change this doctor's status to "+b.dataset.status+"?"))return;
+        await callApi({action:"set_status",doctorId:id,status:b.dataset.status}); await loadDoctors();
+      } else if(b.dataset.act==="tokens"){
+        const value=prompt("Set token balance (0–1,000,000):");
+        if(value===null)return;
+        await callApi({action:"set_tokens",doctorId:id,tokens:Number(value)}); await loadDoctors();
+      }
+    }catch(err){alert(err.message);setStatus(err.message);}
+  });
+  $("invite").addEventListener("click",async()=>{
+    try{
+      const result=await callApi({action:"invite_doctor",doctorId:Number($("doctorId").value),email:$("doctorEmail").value.trim()});
+      setStatus(result.message||"Invitation sent."); await loadDoctors();
+    }catch(e){setStatus(e.message);}
+  });
+  $("refresh").addEventListener("click",loadDoctors);
+  $("signOut").addEventListener("click",async()=>{await client.auth.signOut();$("dashboard").classList.add("hidden");$("loginCard").classList.remove("hidden");setStatus("Signed out.");});
+})();
+</script>
+</main></body></html>
