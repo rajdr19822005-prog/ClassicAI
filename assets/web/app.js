@@ -455,20 +455,25 @@
         alert("सुरक्षित डॉक्टर लॉगिन उपलब्ध होने तक यह क्रिया बंद है।");
         return;
       }
-      if ((currentDoctor.ai_tokens || 0) <= 0) {
-        alert("AI Tokens समाप्त हो गए हैं! कृपया रिचार्ज करें।");
-        openRechargeModal();
-        return;
+      // This repertorization currently runs locally in the browser; it does not call a paid AI API.
+      // Never consume credits for a local calculation or before a successful, billable server response.
+      if (window.__classicaiRepertorizationRunning) return;
+      window.__classicaiRepertorizationRunning = true;
+      const actionButton = document.querySelector('[onclick="executeAIRepertorization()"]');
+      if (actionButton) {
+        actionButton.disabled = true;
+        actionButton.dataset.originalLabel = actionButton.innerHTML;
+        actionButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-sm"></i> Generating…';
       }
 
-      currentDoctor.ai_tokens -= 1;
-      document.getElementById("headerTokenCount").innerText = currentDoctor.ai_tokens;
-      document.getElementById("walletModalTokens").innerText = currentDoctor.ai_tokens;
-
-      // Client-side token balances are not authoritative; never write balances directly from the app.
-
-
-      const patientThermal = document.getElementById("pThermalVal").value;
+      try {
+      const patientThermal = document.getElementById("pThermalVal")?.value;
+      const patientThirst = document.getElementById("pThirstVal")?.value;
+      const dxCategory = document.getElementById("pDiagnosis")?.value;
+      const vesLevel = document.getElementById("vesLevel")?.value;
+      if (!patientThermal || !patientThirst || !dxCategory || !vesLevel) {
+        throw new Error("Required case fields are missing. Please complete the patient details and try again.");
+      }
       const patientThirst = document.getElementById("pThirstVal").value;
       const dxCategory = document.getElementById("pDiagnosis").value;
       const vesLevel = document.getElementById("vesLevel").value;
@@ -608,6 +613,17 @@
       });
 
       document.getElementById("repertorySheetContainer").classList.remove("hidden");
+      } catch (error) {
+        console.error("ClassicAI repertorization failed:", error);
+        alert("Repertorization could not finish: " + (error?.message || "Unexpected error") + ". No credits were deducted. Please check the case fields and try again.");
+      } finally {
+        window.__classicaiRepertorizationRunning = false;
+        if (actionButton) {
+          actionButton.disabled = false;
+          actionButton.innerHTML = actionButton.dataset.originalLabel || '<i class="fa-solid fa-brain text-sm"></i> Run Repertorization & Generate Totality Matrix (-1 Token)';
+          delete actionButton.dataset.originalLabel;
+        }
+      }
     }
 
     function pickRemedyForPrescription(remedyName) {
