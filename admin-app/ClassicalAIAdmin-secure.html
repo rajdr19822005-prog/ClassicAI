@@ -154,7 +154,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;p
       setStatus("Loading doctors…");
       const result=await callApi({action:"list_doctors"});
       const rows=result.doctors||[];
-      $("doctors").innerHTML=rows.length?rows.map(d=>'<tr><td><strong>'+safe(d.doctor_name)+'</strong><br><span class="muted">'+safe(d.clinic_name)+'</span></td><td>'+safe(d.reg_no)+'</td><td>'+safe(d.status)+'</td><td>'+safe(d.ai_tokens)+'</td><td>'+(d.auth_user_id?"Linked":"Not linked")+'</td><td><div class="doctor-actions"><button data-act="invite" data-id="'+safe(d.id)+'" data-reg="'+safe(d.reg_no)+'" class="secondary">Invite</button><button data-act="status" data-id="'+safe(d.id)+'" data-status="'+(d.status==="Active"?"Inactive":"Active")+'" class="secondary">'+(d.status==="Active"?"Deactivate":"Activate")+'</button><button data-act="tokens" data-id="'+safe(d.id)+'" class="secondary">Set tokens</button></div></td></tr>').join(""):'<tr><td colspan="6">No doctor records found.</td></tr>';
+      $("doctors").innerHTML=rows.length?rows.map(d=>'<tr><td><strong>'+safe(d.doctor_name)+'</strong><br><span class="muted">'+safe(d.clinic_name)+'</span></td><td>'+safe(d.reg_no)+'</td><td>'+safe(d.status)+'</td><td>'+safe(d.ai_tokens)+'</td><td>'+(d.auth_user_id?"Linked":"Not linked")+'</td><td><div class="doctor-actions"><button data-act="invite" data-id="'+safe(d.id)+'" data-reg="'+safe(d.reg_no)+'" class="secondary">Invite</button><button data-act="status" data-id="'+safe(d.id)+'" data-status="'+(d.status==="Active"?"Inactive":"Active")+'" class="secondary">'+(d.status==="Active"?"Deactivate":"Activate")+'</button><button data-act="tokens" data-id="'+safe(d.id)+'" class="secondary">Set tokens</button><button data-act="delete" data-id="'+safe(d.id)+'" data-name="'+safe(d.doctor_name)+'" class="danger">Delete</button></div></td></tr>').join(""):'<tr><td colspan="6">No doctor records found.</td></tr>';
       setStatus("Loaded "+rows.length+" doctor record(s).");
     }catch(e){setStatus(e.message);}
   }
@@ -175,6 +175,12 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;p
         const value=prompt("Set token balance (0–1,000,000):");
         if(value===null)return;
         await callApi({action:"set_tokens",doctorId:id,tokens:Number(value)}); await loadDoctors();
+      } else if(b.dataset.act==="delete"){
+        const name=b.dataset.name || "this doctor";
+        if(!confirm("Permanently delete "+name+" (ID "+id+") and its linked non-admin login account? This cannot be undone. Deletion is blocked if patient cases are associated. If you only want to prevent access, choose Deactivate instead.")) return;
+        const result=await callApi({action:"delete_doctor",doctorId:id});
+        alert(result.warning || result.message || "Doctor deleted.");
+        await loadDoctors();
       }
     }catch(err){alert(err.message);setStatus(err.message);}
   });
