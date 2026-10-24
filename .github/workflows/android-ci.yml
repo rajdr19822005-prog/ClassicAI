@@ -51,7 +51,7 @@ jobs:
       - name: Validate app JavaScript and security invariants
         run: |
           node --check assets/web/app.js
-          ! grep -Eq 'SUPABASE_ANON_KEY||supabaseClient\.from|rzp_live_|jyotidr\.19822005-1@oksbi|919235551713|localStorage\.(getItem|setItem)\("khc_saved_cases"' assets/web/app.js
+          ! grep -Eq 'SUPABASE_ANON_KEY|supabaseClient\.from|rzp_live_|jyotidr\.19822005-1@oksbi|919235551713|localStorage\.(getItem|setItem)\("khc_saved_cases"' assets/web/app.js
       - name: Build debug APK
         run: flutter build apk --debug
       - name: Upload debug APK (not for Play upload)
