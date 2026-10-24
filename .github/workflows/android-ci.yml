@@ -34,6 +34,11 @@ jobs:
           s = p.read_text()
           s = s.replace('applicationId = "com.classicai.classicai"', 'applicationId = "com.classicai.mobile"')
           p.write_text(s)
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          ms = manifest.read_text()
+          if 'android.permission.INTERNET' not in ms:
+              ms = ms.replace('    <application', '    <uses-permission android:name="android.permission.INTERNET" />\\n    <application', 1)
+              manifest.write_text(ms)
           PY
       - name: Install dependencies
         run: flutter pub get
@@ -106,6 +111,11 @@ jobs:
               s = s.replace('    buildTypes {', '    signingConfigs {\n        create("release") {\n            keyAlias = keystoreProperties["keyAlias"] as String\n            keyPassword = keystoreProperties["keyPassword"] as String\n            storeFile = file(keystoreProperties["storeFile"] as String)\n            storePassword = keystoreProperties["storePassword"] as String\n        }\n    }\n\n    buildTypes {')
           s = s.replace('signingConfig = signingConfigs.getByName("debug")', 'signingConfig = signingConfigs.getByName("release")')
           p.write_text(s)
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          ms = manifest.read_text()
+          if 'android.permission.INTERNET' not in ms:
+              ms = ms.replace('    <application', '    <uses-permission android:name="android.permission.INTERNET" />\\n    <application', 1)
+              manifest.write_text(ms)
           PY
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
           cat > android/key.properties <<EOF
