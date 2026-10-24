@@ -61,7 +61,8 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;p
       return;
     }
     $("projectUrl").value=url;
-    $("publicKey").value=key;\n    client=window.supabase.createClient(url,key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+    $("publicKey").value=key;
+    client=window.supabase.createClient(url,key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
     edgeUrl=url+"/functions/v1/doctor-admin";
     $("loginCard").classList.remove("hidden");
     $("config").classList.add("hidden");
