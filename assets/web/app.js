@@ -188,8 +188,9 @@
       }
       if (supabaseClient) {
         supabaseClient.auth.onAuthStateChange((event) => {
-          if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && (type === "invite" || type === "recovery" || type === "signup"))) {
-            showPasswordSetup(type === "invite" ? "Invitation accepted. Create your password to finish setup." : "Create a new password for your account.");
+          const currentType = new URLSearchParams((window.location.hash || "").replace(/^#/, "")).get("type");
+          if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && (currentType === "invite" || currentType === "recovery" || currentType === "signup"))) {
+            showPasswordSetup(currentType === "invite" ? "Invitation accepted. Create your password to finish setup." : "Create a new password for your account.");
           }
         });
       }
