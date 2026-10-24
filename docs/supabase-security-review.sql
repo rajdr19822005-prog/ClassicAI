@@ -21,13 +21,13 @@ DROP POLICY IF EXISTS doctors_select_own_profile ON public.doctors;
 CREATE POLICY doctors_select_own_profile
   ON public.doctors
   FOR SELECT TO authenticated
-  USING (auth_user_id = (SELECT auth.uid()));
+  USING (auth_user_id = (SELECT auth.uid()) AND status = 'Active');
 
 DROP POLICY IF EXISTS patient_cases_select_own ON public.patient_cases;
 CREATE POLICY patient_cases_select_own
   ON public.patient_cases
   FOR SELECT TO authenticated
-  USING (doctor_user_id = (SELECT auth.uid()) AND doctor_reg = (SELECT d.reg_no FROM public.doctors d WHERE d.auth_user_id = (SELECT auth.uid())));
+  USING (doctor_user_id = (SELECT auth.uid()) AND doctor_reg = (SELECT d.reg_no FROM public.doctors d WHERE d.auth_user_id = (SELECT auth.uid()) AND d.status = 'Active'));
 
 DROP POLICY IF EXISTS patient_cases_insert_own ON public.patient_cases;
 CREATE POLICY patient_cases_insert_own
@@ -46,9 +46,10 @@ DROP POLICY IF EXISTS patient_cases_delete_own ON public.patient_cases;
 CREATE POLICY patient_cases_delete_own
   ON public.patient_cases
   FOR DELETE TO authenticated
-  USING (doctor_user_id = (SELECT auth.uid()));
+  USING (doctor_user_id = (SELECT auth.uid()) AND doctor_reg = (SELECT d.reg_no FROM public.doctors d WHERE d.auth_user_id = (SELECT auth.uid()) AND d.status = 'Active'));
 
 REVOKE ALL ON public.doctors FROM anon, authenticated;
+REVOKE SELECT (access_pin) ON public.doctors FROM anon, authenticated;
 GRANT SELECT (id, doctor_name, clinic_name, reg_no, ai_tokens, status, created_at, whatsapp_no, promo_used, auth_user_id) ON public.doctors TO authenticated;
 
 REVOKE ALL ON public.patient_cases FROM anon, authenticated;
