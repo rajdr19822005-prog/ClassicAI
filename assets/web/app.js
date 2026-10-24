@@ -106,6 +106,95 @@
       loginAsDoctor();
     }
 
+    function showPasswordSetup(message = "Create a password for your doctor account.") {
+      const loginForm = document.getElementById("loginForm");
+      const panel = document.getElementById("passwordSetupPanel");
+      const status = document.getElementById("passwordSetupStatus");
+      if (loginForm) loginForm.classList.add("hidden");
+      if (panel) panel.classList.remove("hidden");
+      if (status) status.innerText = message;
+    }
+
+    async function requestDoctorPasswordReset() {
+      const email = document.getElementById("loginRegNo")?.value?.trim().toLowerCase();
+      const err = document.getElementById("docAuthError");
+      if (err) err.classList.add("hidden");
+      if (!supabaseClient) {
+        if (err) { err.innerText = "Secure login is not configured."; err.classList.remove("hidden"); }
+        return;
+      }
+      if (!email) {
+        if (err) { err.innerText = "Enter the registered doctor email first."; err.classList.remove("hidden"); }
+        return;
+      }
+      const button = document.getElementById("forgotDoctorPassword");
+      if (button) { button.disabled = true; button.innerText = "Sending…"; }
+      try {
+        const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+          redirectTo: "https://classicai.vercel.app/assets/web/index.html"
+        });
+        if (error) throw error;
+        if (err) {
+          err.innerText = "If this email belongs to an account, a password setup link has been sent. Open it on this device.";
+          err.classList.remove("hidden");
+        }
+      } catch (_) {
+        if (err) { err.innerText = "Could not send the reset email. Check Auth URL configuration and try again later."; err.classList.remove("hidden"); }
+      } finally {
+        if (button) { button.disabled = false; button.innerText = "Forgot password / Set password"; }
+      }
+    }
+
+    async function saveDoctorPassword() {
+      const password = document.getElementById("newDoctorPassword")?.value ?? "";
+      const confirm = document.getElementById("confirmDoctorPassword")?.value ?? "";
+      const status = document.getElementById("passwordSetupStatus");
+      const button = document.getElementById("saveDoctorPassword");
+      if (!supabaseClient) { if (status) status.innerText = "Secure login is not configured."; return; }
+      if (password.length < 10) { if (status) status.innerText = "Use at least 10 characters."; return; }
+      if (password !== confirm) { if (status) status.innerText = "The passwords do not match."; return; }
+      if (button) { button.disabled = true; button.innerText = "Saving…"; }
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session?.user) throw new Error("This setup link is missing or expired. Request a fresh password setup email.");
+        const email = session.user.email;
+        const { error } = await supabaseClient.auth.updateUser({ password });
+        if (error) throw error;
+        await supabaseClient.auth.signOut();
+        window.history.replaceState(null, document.title, window.location.pathname);
+        document.getElementById("passwordSetupPanel")?.classList.add("hidden");
+        document.getElementById("loginForm")?.classList.remove("hidden");
+        const emailInput = document.getElementById("loginRegNo");
+        if (emailInput && email) emailInput.value = email;
+        const loginError = document.getElementById("docAuthError");
+        if (loginError) {
+          loginError.innerText = "Password created. Sign in with your email and new password.";
+          loginError.classList.remove("hidden");
+        }
+        document.getElementById("loginPin")?.focus();
+      } catch (e) {
+        if (status) status.innerText = e.message || "Could not save the password. Request a fresh setup email.";
+      } finally {
+        if (button) { button.disabled = false; button.innerText = "Save password"; }
+      }
+    }
+
+    function initializeAuthLinkFlow() {
+      const hash = window.location.hash || "";
+      const params = new URLSearchParams(hash.replace(/^#/, ""));
+      const type = params.get("type");
+      if (type === "invite" || type === "recovery" || type === "signup") {
+        showPasswordSetup(type === "invite" ? "Invitation accepted. Create your password to finish setup." : "Create a new password for your account.");
+      }
+      if (supabaseClient) {
+        supabaseClient.auth.onAuthStateChange((event) => {
+          if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && (type === "invite" || type === "recovery" || type === "signup"))) {
+            showPasswordSetup(type === "invite" ? "Invitation accepted. Create your password to finish setup." : "Create a new password for your account.");
+          }
+        });
+      }
+    }
+
     function enterDemoMode() {
       demoMode = true;
       currentDoctor = {
@@ -169,6 +258,8 @@
 
     async function restoreAuthenticatedDoctor() {
       if (!supabaseClient) return;
+      const authLinkType = new URLSearchParams((window.location.hash || "").replace(/^#/, "")).get("type");
+      if (authLinkType === "invite" || authLinkType === "recovery" || authLinkType === "signup") return;
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session?.user) return;
@@ -867,5 +958,8 @@
       try { localStorage.removeItem("homoeo_current_doctor"); } catch(e) {}
       try { localStorage.removeItem("homoeo_master_doctors_db"); } catch(e) {}
       // Legacy patient archives are not loaded. Existing archives are not auto-deleted to avoid silent data loss.
+      initializeAuthLinkFlow();
+      document.getElementById("forgotDoctorPassword")?.addEventListener("click", requestDoctorPasswordReset);
+      document.getElementById("saveDoctorPassword")?.addEventListener("click", saveDoctorPassword);
       restoreAuthenticatedDoctor();
     });
