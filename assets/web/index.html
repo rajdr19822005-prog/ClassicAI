@@ -827,61 +827,14 @@
     }
 
     function loginAsDoctor() {
-      const regInput = document.getElementById("loginRegNo");
-      const pinInput = document.getElementById("loginPin");
       const err = document.getElementById("docAuthError");
-
-      const reg = (regInput ? regInput.value : "").trim().toUpperCase();
-      const pin = (pinInput ? pinInput.value : "").trim();
-
       if (err) {
-        err.classList.add("hidden");
-        err.innerText = "";
-      }
-
-      // Default master bypass if left blank or typed
-      const activeReg = reg || "ADMIN-09";
-      const activePin = pin || "1801";
-
-      if (activeReg === "ADMIN-01") {        if (err) {
-          err.innerText = "❌ प्रोफाइल ADMIN-01 निष्क्रिय है। ADMIN-09 का प्रयोग करें।";
-          err.classList.remove("hidden");
-        }
-        return;
-      }
-
-      // 1. Direct Hardcoded Authentication (No Network Dependency)
-      if (activeReg === "ADMIN-09" && activePin === "1801") {
-        currentDoctor = {
-          doctor_name: "Dr. R.K. Singh, MD (Hom.)",
-          clinic_name: "ClassicalAI_ver_3.0",
-          reg_no: "ADMIN-09",
-          whatsapp_no: "919235551713",
-          access_pin: "1801",
-          ai_tokens: 100,
-          status: "Active"
-        };
-        try { localStorage.setItem("homoeo_current_doctor", JSON.stringify(currentDoctor)); } catch(e){}
-        launchApp();
-        return;
-      }
-
-      // 2. Local Database Fallback
-      try {
-        const localList = JSON.parse(localStorage.getItem("homoeo_master_doctors_db") || "[]");
-        const found = localList.find(d => (d.reg_no || "").toUpperCase() === activeReg);
-        if (found && (found.access_pin || "").trim() === activePin && found.status === "Active") {
-          currentDoctor = found;
-          try { localStorage.setItem("homoeo_current_doctor", JSON.stringify(found)); } catch(e){}
-          launchApp();
-          return;
-        }
-      } catch (e) {}
-
-      if (err) {
-        err.innerText = "अमान्य क्रेडेंशियल! (ADMIN-09 और 1801 का प्रयोग करें)";
+        err.innerText = "सुरक्षित लॉगिन अभी कॉन्फ़िगर नहीं है। मरीजों के डेटा के लिए सर्वर-साइड प्रमाणीकरण सक्षम होने तक इस बिल्ड में लॉगिन बंद है।";
         err.classList.remove("hidden");
       }
+      // Fail closed: do not accept hard-coded PINs or locally stored doctor records.
+      // Configure Supabase Auth and server-enforced authorization before enabling sign-in.
+      return;
     }
 
     function launchApp() {
@@ -1561,56 +1514,10 @@
     }
 
     function payViaRazorpay() {
-      const upiId = "jyotidr.19822005-1@oksbi";
-      const amount = selectedPlan.price;
-
-      if (!window.Razorpay) {
-        fallbackDirectUpi(upiId, amount);
-        return;
-      }
-
-      const options = {
-        key: RAZORPAY_KEY_ID,
-        amount: amount * 100,
-        currency: "INR",
-        name: "ClassicalAI_ver_3.0",
-        description: `Recharge ${selectedPlan.tokens} AI Tokens`,
-        image: "https://cdn-icons-png.flaticon.com/512/2966/2966486.png",
-        handler: async function (response) {
-          alert(`भुगतान सफल! Payment ID: ${response.razorpay_payment_id}`);
-          currentDoctor.ai_tokens = (currentDoctor.ai_tokens || 0) + selectedPlan.tokens;
-          document.getElementById("headerTokenCount").innerText = currentDoctor.ai_tokens;
-          document.getElementById("walletModalTokens").innerText = currentDoctor.ai_tokens;
-
-          try {
-            localStorage.setItem("homoeo_current_doctor", JSON.stringify(currentDoctor));
-          } catch(e) {}
-
-          if (supabaseClient) {
-            try {
-              await supabaseClient.from('doctors').update({ ai_tokens: currentDoctor.ai_tokens }).eq('reg_no', currentDoctor.reg_no);
-            } catch(e) {}
-          }
-          closeRechargeModal();
-        },
-        prefill: {
-          name: currentDoctor ? currentDoctor.doctor_name : "Doctor",
-          contact: currentDoctor ? currentDoctor.whatsapp_no : "919235551713"
-        },
-        theme: {
-          color: "#0f766e"
-        }
-      };
-
-      try {
-        const rzp = new Razorpay(options);
-        rzp.on('payment.failed', function () {
-          fallbackDirectUpi(upiId, amount);
-        });
-        rzp.open();
-      } catch (e) {
-        fallbackDirectUpi(upiId, amount);
-      }
+      // Payment is intentionally disabled until a trusted backend verifies Razorpay
+      // signatures/webhooks and grants token credits atomically.
+      alert("भुगतान अस्थायी रूप से बंद है। सुरक्षित सर्वर-साइड भुगतान सत्यापन कॉन्फ़िगर होने के बाद इसे सक्षम किया जाएगा।");
+      return;
     }
 
     function fallbackDirectUpi(upiId, amount) {
@@ -1654,40 +1561,18 @@
       window.open(`https://wa.me/919235551713?text=${encodeURIComponent(msg)}`, "_blank");
     }
 
-    // AUTO-BOOT & SILENT INITIALIZATION
+    // AUTO-BOOT: do not enumerate doctor records with the public anon key.
+    // The previous client queried every row in doctors and cached records in localStorage.
     async function syncDatabaseOnBoot() {
-      if (!supabaseClient) return;
-      try {
-        const { data, error } = await supabaseClient.from('doctors').select('*');
-        if (!error && data && data.length > 0) {
-          localStorage.setItem("homoeo_master_doctors_db", JSON.stringify(data));
-          if (currentDoctor) {
-            const fresh = data.find(d => d.reg_no === currentDoctor.reg_no);
-            if (fresh) {
-              currentDoctor = fresh;
-              localStorage.setItem("homoeo_current_doctor", JSON.stringify(fresh));
-              document.getElementById("headerTokenCount").innerText = fresh.ai_tokens;
-              document.getElementById("walletModalTokens").innerText = fresh.ai_tokens;
-            }
-          }
-        }
-      } catch (e) {}
+      // Intentionally disabled until authenticated, per-user server-side access is configured.
+      return;
     }
 
     window.addEventListener('DOMContentLoaded', () => {
-      // Direct session restore
-      try {
-        const cached = localStorage.getItem("homoeo_current_doctor");
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed && parsed.reg_no === "ADMIN-09") {
-            currentDoctor = parsed;
-            launchApp();
-          }
-        }
-      } catch(e) {}
-
-      syncDatabaseOnBoot();
-    });  </script>
+      // Fail closed: never restore an unverified localStorage doctor session.
+      try { localStorage.removeItem("homoeo_current_doctor"); } catch(e) {}
+      try { localStorage.removeItem("homoeo_master_doctors_db"); } catch(e) {}
+    });
+  </script>
 </body>
 </html>
