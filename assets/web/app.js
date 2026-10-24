@@ -474,10 +474,6 @@
       if (!patientThermal || !patientThirst || !dxCategory || !vesLevel) {
         throw new Error("Required case fields are missing. Please complete the patient details and try again.");
       }
-      const patientThirst = document.getElementById("pThirstVal").value;
-      const dxCategory = document.getElementById("pDiagnosis").value;
-      const vesLevel = document.getElementById("vesLevel").value;
-
       let otherSymptomsFullText = "";
       for (let i = 1; i <= 8; i++) {
         const field = document.getElementById(`pOtherStep${i}`);
