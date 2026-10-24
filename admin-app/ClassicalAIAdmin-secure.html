@@ -38,6 +38,8 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;p
 
 <section id="dashboard" class="hidden">
 <div class="card"><div class="grid" style="align-items:center"><div><h2>Doctor approvals</h2><p class="muted">All privileged changes are sent to the authenticated Edge Function.</p></div><div><button id="refresh" class="secondary">Refresh list</button> <button id="signOut" class="secondary">Sign out</button></div></div><p id="status" class="status" role="status"></p></div>
+<div class="card"><h2>Create doctor record</h2><p class="muted">Create the directory record first. New records start as Pending with 0 AI tokens and no linked login; activate the record before sending an invitation. A legacy required PIN field is populated with a random server-side value that is never shown or returned.</p>
+<div class="grid"><div><label for="newDoctorName">Doctor name</label><input id="newDoctorName" maxlength="120" autocomplete="off" required></div><div><label for="newClinicName">Clinic name (optional)</label><input id="newClinicName" maxlength="160" autocomplete="off"></div><div><label for="newDoctorReg">Registration number</label><input id="newDoctorReg" maxlength="80" autocomplete="off" required></div><div><label for="newDoctorWhatsApp">WhatsApp number (optional)</label><input id="newDoctorWhatsApp" maxlength="30" placeholder="Include country code"></div></div><button id="createDoctor" type="button">Create doctor record</button><p id="createDoctorStatus" class="status" role="status"></p></div>
 <div class="card"><h2>Invite approved doctor</h2><p class="muted">Use the existing doctor's database row ID and email. The function sends an Auth invitation and links the account to the approved doctor row. No reusable PIN is created.</p>
 <div class="grid"><div><label for="doctorId">Doctor row ID</label><input id="doctorId" type="number" min="1" step="1"></div><div><label for="doctorEmail">Doctor email</label><input id="doctorEmail" type="email" autocomplete="off"></div></div><button id="invite" type="button">Send invitation and link account</button><p id="inviteStatus" class="status" role="status"></p></div>
 <div class="card"><h2>Doctor directory</h2><div class="tablewrap"><table><thead><tr><th>Doctor</th><th>Registration</th><th>Status</th><th>Tokens</th><th>Auth link</th><th>Actions</th></tr></thead><tbody id="doctors"><tr><td colspan="6">Sign in and refresh to load doctors.</td></tr></tbody></table></div></div>
@@ -185,6 +187,23 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;p
         await loadDoctors();
       }
     }catch(err){alert(err.message);setStatus(err.message);}
+  });
+  $("createDoctor").addEventListener("click",async()=>{
+    const button=$("createDoctor"), status=$("createDoctorStatus");
+    const doctor_name=$("newDoctorName").value.trim();
+    const clinic_name=$("newClinicName").value.trim();
+    const reg_no=$("newDoctorReg").value.trim();
+    const whatsapp_no=$("newDoctorWhatsApp").value.trim();
+    if(!doctor_name || !reg_no){status.textContent="Doctor name and registration number are required.";return;}
+    button.disabled=true; button.textContent="Creating record…"; status.textContent="Creating a Pending doctor record…";
+    try{
+      const result=await callApi({action:"create_doctor",doctor_name,clinic_name,reg_no,whatsapp_no});
+      status.textContent="Created doctor record ID "+result.doctor.id+" ("+result.doctor.reg_no+"). It is Pending; activate it before inviting.";
+      $("newDoctorName").value=""; $("newClinicName").value=""; $("newDoctorReg").value=""; $("newDoctorWhatsApp").value="";
+      $("doctorId").value=result.doctor.id;
+      await loadDoctors();
+    }catch(e){status.textContent="Create failed: "+e.message;}
+    finally{button.disabled=false; button.textContent="Create doctor record";}
   });
   $("invite").addEventListener("click",async()=>{
     const button=$("invite");
