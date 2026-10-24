@@ -33,14 +33,14 @@ DROP POLICY IF EXISTS patient_cases_insert_own ON public.patient_cases;
 CREATE POLICY patient_cases_insert_own
   ON public.patient_cases
   FOR INSERT TO authenticated
-  WITH CHECK (doctor_user_id = (SELECT auth.uid()) AND doctor_reg = (SELECT d.reg_no FROM public.doctors d WHERE d.auth_user_id = (SELECT auth.uid())));
+  WITH CHECK (doctor_user_id = (SELECT auth.uid()) AND doctor_reg = (SELECT d.reg_no FROM public.doctors d WHERE d.auth_user_id = (SELECT auth.uid()) AND d.status = 'Active')));
 
 DROP POLICY IF EXISTS patient_cases_update_own ON public.patient_cases;
 CREATE POLICY patient_cases_update_own
   ON public.patient_cases
   FOR UPDATE TO authenticated
-  USING (doctor_user_id = (SELECT auth.uid()) AND doctor_reg = (SELECT d.reg_no FROM public.doctors d WHERE d.auth_user_id = (SELECT auth.uid())))
-  WITH CHECK (doctor_user_id = (SELECT auth.uid()) AND doctor_reg = (SELECT d.reg_no FROM public.doctors d WHERE d.auth_user_id = (SELECT auth.uid())));
+  USING (doctor_user_id = (SELECT auth.uid()) AND doctor_reg = (SELECT d.reg_no FROM public.doctors d WHERE d.auth_user_id = (SELECT auth.uid()) AND d.status = 'Active')))
+  WITH CHECK (doctor_user_id = (SELECT auth.uid()) AND doctor_reg = (SELECT d.reg_no FROM public.doctors d WHERE d.auth_user_id = (SELECT auth.uid()) AND d.status = 'Active')));
 
 DROP POLICY IF EXISTS patient_cases_delete_own ON public.patient_cases;
 CREATE POLICY patient_cases_delete_own
