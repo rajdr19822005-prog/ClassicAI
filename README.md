@@ -1,39 +1,37 @@
-# ClassicAI Android source
+# ClassicalAI Android source
 
-This Flutter project packages the supplied `assets/web/index.html` in an Android WebView. The page is bundled in the app, while its external scripts and hosted services still require internet access.
+This Flutter project packages the supplied `assets/web/index.html` in an Android WebView. The app page is bundled locally; its CDN scripts and hosted integrations still require internet access.
+
+## Current build status
+
+The GitHub Actions workflow runs Dart analysis, a smoke test, and builds a **debug APK** for device testing. A successful debug APK is not a Google Play release. A signed Android App Bundle is built only when the workflow is manually dispatched and all signing secrets are configured.
 
 ## Build and validate
 
-1. Install the current stable Flutter SDK, Java 17, and Android SDK.
-2. Run `flutter create --platforms=android --org=com.classicai .` to generate Android platform files.
-3. In `android/app/build.gradle.kts`, confirm `applicationId = "com.classicai.mobile"`. Confirm the ID is available and correct before any Play upload; the ID cannot be changed after the app is published.
-4. Run:
-   ```sh
-   flutter pub get
-   flutter analyze
-   flutter test
-   flutter build apk --debug
-   ```
-5. For Play, configure the upload keystore as described below and build a signed Android App Bundle.
+1. Install stable Flutter, Java 17, and the Android SDK.
+2. Run `flutter create --platforms=android --org=com.classicai . to generate Android platform files.
+3. Confirm `applicationId = "com.classicai.mobile"` in `android/app/build.gradle.kts`. Confirm the package ID is available and correct before the first Play upload; it cannot be changed after publishing.
+4. Run `flutter pub get`, `flutter analyze`, `flutter test`, and `flutter build apk --debug`.
 
-## GitHub Actions release signing
+## Required before production or tester access
 
-Add these repository Actions secrets under Settings → Secrets and variables → Actions:
+**The app is deliberately fail-closed and is not yet a usable production release.** During review, the supplied HTML was found to contain a hard-coded doctor/PIN bypass, client-side doctor-record enumeration, and client-side token crediting after a payment callback. Those shortcuts were removed/disabled rather than shipped as if secure. Login and recharge must remain unavailable until the following are implemented and tested:
 
-- `ANDROID_KEYSTORE_BASE64`: base64-encoded upload keystore file
+- **Authentication and authorization:** implement Supabase Auth or a trusted backend; bind doctor identity to an authenticated user; enforce row-level security on all patient/doctor tables. Never enumerate all doctor rows using the anon key or rely on localStorage as authorization.
+- **Payments:** implement a server endpoint/webhook that verifies Razorpay signatures and payment status and atomically grants credits. A browser callback or UPI handoff is not payment verification. Keep Razorpay secret credentials on the backend only.
+- **Patient data:** define consent, access control, retention/deletion, privacy policy, encryption and Google Play Data safety declarations. Test on real devices.
+- **External integrations:** test CDN loading, PDF export, and WhatsApp/external links in Android WebView. These integrations require internet.
+- **Play Console:** confirm package ID, provide store listing and privacy policy, complete Data safety and applicable health/content declarations, configure testers, then upload the signed AAB under Internal testing.
+
+## GitHub Actions signing
+
+Add repository Actions secrets under Settings → Secrets and variables → Actions:
+
+- `ANDROID_KEYSTORE_BASE64`: base64-encoded upload keystore
 - `ANDROID_KEY_ALIAS`: key alias
 - `ANDROID_KEY_PASSWORD`: key password
 - `ANDROID_STORE_PASSWORD`: keystore password
 
-Then run Actions → Android CI → Run workflow. The manually dispatched signed release job will create an `classicai-release-aab` artifact if all secrets are configured. Keep a secure offline backup of the upload keystore and passwords; never commit them.
+Then choose Actions → Android CI → Run workflow. If the secrets are present, the signed job should upload an artifact named `classicai-release-aab`. Keep an offline backup of the upload keystore and passwords. Never commit them or send them in chat.
 
-## Release blockers to resolve before public or tester distribution
-
-- **Authentication:** the supplied HTML contains a hard-coded fallback doctor login/PIN. Remove this shortcut and use secure server-side authentication before distributing the app. Client-side HTML can be inspected or modified.
-- **Payments:** the HTML uses Razorpay Checkout in a WebView. Validate the complete checkout flow on real Android devices; popups/redirects may behave differently from desktop browsers. Payment capture, signature verification, and token-crediting must happen on a trusted backend/webhook, not based solely on a client callback.
-- **Supabase:** the embedded URL and anon/public key are client-facing configuration, not a service-role secret. Verify Row Level Security and policies for every table and restrict access by authenticated user/doctor.
-- **Patient data:** the app handles patient/clinical case information. Define consent, access control, retention, deletion, encryption, privacy policy, and Google Play Data safety declarations before rollout.
-- **External dependencies:** Tailwind, Font Awesome, Supabase JS, Razorpay Checkout, and html2pdf load from third-party URLs. Most features therefore require internet connectivity. Test PDF export and WhatsApp/external-link behavior on Android.
-- **Play Console:** finish app details, privacy policy, Data safety, content declarations, tester list, and internal-testing rollout yourself. No Play Console upload is performed by this repository workflow.
-
-The workflow tests Dart analysis and a smoke test, then builds a debug APK. The signed release bundle job runs only on manual workflow dispatch and requires the four signing secrets. Device, payment, and Play Console validation are still required.
+No signed AAB has been generated and no Play Console upload has been performed.
