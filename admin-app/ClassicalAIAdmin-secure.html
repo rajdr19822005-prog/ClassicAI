@@ -26,7 +26,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;p
 <div class="grid">
 <div><label for="projectUrl">Supabase project URL</label><input id="projectUrl" placeholder="https://YOUR_PROJECT.supabase.co"></div>
 <div><label for="publicKey">Supabase publishable key or legacy anon key</label><input id="publicKey" placeholder="sb_publishable_… or legacy anon key" autocomplete="off"></div>
-</div><button id="saveConfig">Connect</button><p class="muted">Automatic configuration is used whenever available; admin sign-in sessions are securely persisted by the Supabase client in this browser.</p>
+</div><button id="saveConfig">Connect manually</button><p id="configStatus" class="muted" role="status">Loading saved site configuration…</p>
 </section>
 
 <section id="loginCard" class="card hidden">
