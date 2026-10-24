@@ -80,10 +80,11 @@ Deno.serve(async (req) => {
       if (inviteError) throw inviteError;
       if (!invited.user) throw new Error("Supabase Auth did not return the invited user");
 
-      const { error: linkError } = await admin.from("doctors")
+      const { data: linkedDoctor, error: linkError } = await admin.from("doctors")
         .update({ auth_user_id: invited.user.id })
-        .eq("id", doctorId).is("auth_user_id", null);
-      if (linkError) {
+        .eq("id", doctorId).is("auth_user_id", null)
+        .select("id").maybeSingle();
+      if (linkError || !linkedDoctor) {
         // Avoid deleting the invite automatically: the invitation may already have been delivered.
         throw new Error("Invite sent, but doctor mapping failed. An administrator must reconcile auth_user_id.");
       }
