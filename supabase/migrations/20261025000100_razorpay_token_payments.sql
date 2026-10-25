@@ -18,6 +18,7 @@ create index if not exists payment_orders_doctor_id_idx on public.payment_orders
 alter table public.payment_orders enable row level security;
 revoke all on table public.payment_orders from anon, authenticated;
 grant all on table public.payment_orders to service_role;
+grant usage, select on sequence public.payment_orders_id_seq to service_role;
 
 create or replace function public.apply_razorpay_payment(
   p_razorpay_order_id text,
