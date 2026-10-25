@@ -13,6 +13,8 @@ create table if not exists public.payment_orders (
   paid_at timestamptz
 );
 
+create index if not exists payment_orders_doctor_id_idx on public.payment_orders (doctor_id);
+
 alter table public.payment_orders enable row level security;
 revoke all on table public.payment_orders from anon, authenticated;
 grant all on table public.payment_orders to service_role;
