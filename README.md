@@ -15,13 +15,35 @@ The GitHub Actions workflow runs Dart analysis, a smoke test, and builds a **deb
 
 ## Required before production or tester access
 
-**The app is deliberately fail-closed and is not yet a usable production release.** During review, the supplied HTML was found to contain a hard-coded doctor/PIN bypass, client-side doctor-record enumeration, and client-side token crediting after a payment callback. Those shortcuts were removed/disabled rather than shipped as if secure. Login and recharge must remain unavailable until the following are implemented and tested:
+The doctor login uses Supabase Auth and an active doctor record linked to that Auth user. The Razorpay server functions and token-crediting database routine have been implemented, but **live payments remain disabled until the Razorpay secrets and webhook are configured and an end-to-end test payment succeeds**.
 
-- **Authentication and authorization:** implement Supabase Auth or a trusted backend; bind doctor identity to an authenticated user; enforce row-level security on all patient/doctor tables. Never enumerate all doctor rows using the anon key or rely on localStorage as authorization.
-- **Payments:** implement a server endpoint/webhook that verifies Razorpay signatures and payment status and atomically grants credits. A browser callback or UPI handoff is not payment verification. Keep Razorpay secret credentials on the backend only.
-- **Patient data:** define consent, access control, retention/deletion, privacy policy, encryption and Google Play Data safety declarations. Test on real devices.
+- **Authentication and authorization:** keep Supabase Auth, doctor-to-user mapping, and row-level security in place. Never enumerate all doctor rows using a public key or rely on localStorage as authorization.
+- **Payments:** server-created Razorpay orders, server-side HMAC verification, a captured-payment status check, an idempotent database credit routine, and a signed webhook are implemented. See the setup steps below. Never put a Razorpay Key Secret in browser code or Git.
+- **Patient data:** patient case cloud saving is still disabled. Before enabling it, define consent, access control, retention/deletion, privacy policy, encryption and Google Play Data safety declarations. Test on real devices.
 - **External integrations:** test CDN loading, PDF export, and WhatsApp/external links in Android WebView. These integrations require internet.
 - **Play Console:** confirm package ID, provide store listing and privacy policy, complete Data safety and applicable health/content declarations, configure testers, then upload the signed AAB under Internal testing.
+
+## Razorpay setup (required before collecting real payments)
+
+The current token package is **150 tokens for ₹499 INR**. The price and token quantity are enforced on the server; the browser cannot choose a different amount.
+
+1. In Razorpay Dashboard, create or obtain your **Key ID** and **Key Secret**. Start with Test Mode and use test credentials first.
+2. In [Supabase Edge Function Secrets](https://supabase.com/dashboard/project/hhnbayuaozzykbtvfvdk/functions/secrets), add:
+   - `RAZORPAY_KEY_ID` — Razorpay Key ID
+   - `RAZORPAY_KEY_SECRET` — Razorpay Key Secret
+   - `RAZORPAY_WEBHOOK_SECRET` — a webhook secret you create in the Razorpay Dashboard
+3. In Razorpay Dashboard → Webhooks, add this endpoint:
+   `https://hhnbayuaozzykbtvfvdk.supabase.co/functions/v1/razorpay-webhook`
+4. Subscribe to `payment.captured` and `order.paid`. Enter the same webhook secret in Razorpay and Supabase.
+5. Ensure Razorpay is configured for automatic payment capture. The app credits tokens only when Razorpay confirms the payment is captured.
+6. Test in Razorpay Test Mode with a test doctor account, confirm one successful payment adds exactly 150 tokens once, and confirm failed/cancelled payments add zero tokens. Only switch to Live Mode after these checks and your account is activated by Razorpay.
+
+Edge Functions:
+- `razorpay-create-order` — authenticated doctor creates a fixed-price server-side order.
+- `razorpay-verify-payment` — verifies checkout HMAC and confirms captured payment before crediting.
+- `razorpay-webhook` — validates Razorpay's webhook HMAC and safely handles duplicate delivery.
+
+The webhook URL and function code are deployed, but payment processing returns a configuration error until all three Razorpay secrets are set. Never send secrets in chat, commit them to the repository, or place them in browser/mobile code.
 
 ## GitHub Actions signing
 
