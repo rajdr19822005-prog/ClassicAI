@@ -971,13 +971,125 @@
       window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
     }
 
-    // Payments are fail-closed until a trusted backend verifies provider signatures and grants credits.
-    function payViaRazorpay() { alert("भुगतान सुविधा अभी बंद है।"); }
-    function openRechargeModal() { alert("रिचार्ज सुरक्षित बैकएंड तैयार होने तक बंद है।"); }
-    function closeRechargeModal() {}
-    function selectPlan() { alert("रिचार्ज सुरक्षित बैकएंड तैयार होने तक बंद है।"); }
-    function copyUpiId() { alert("भुगतान सुविधा अभी बंद है।"); }
-    function requestAdminRechargeWA() { alert("रिचार्ज अनुरोध अभी बंद है।"); }
+    // Razorpay token recharge. Prices and token quantities are enforced by the server.
+    function showRechargeStatus(message, isError = true) {
+      const status = document.getElementById("rechargeStatus");
+      if (!status) return;
+      status.innerText = message;
+      status.classList.remove("hidden");
+      status.classList.toggle("bg-amber-50", isError);
+      status.classList.toggle("border-amber-200", isError);
+      status.classList.toggle("text-amber-900", isError);
+      status.classList.toggle("bg-emerald-50", !isError);
+      status.classList.toggle("border-emerald-200", !isError);
+      status.classList.toggle("text-emerald-900", !isError);
+    }
+
+    function openRechargeModal() {
+      if (demoMode || !currentDoctor || !supabaseClient) {
+        alert("टोकन खरीदने के लिए अपने स्वीकृत डॉक्टर खाते में सुरक्षित रूप से लॉगिन करें।");
+        return;
+      }
+      const modal = document.getElementById("rechargeModal");
+      const status = document.getElementById("rechargeStatus");
+      if (status) status.classList.add("hidden");
+      if (modal) modal.classList.remove("hidden");
+    }
+
+    function closeRechargeModal() {
+      document.getElementById("rechargeModal")?.classList.add("hidden");
+    }
+
+    function selectPlan(planId = "tokens_150") {
+      if (planId !== "tokens_150") return;
+      selectedPlan = { tokens: 150, price: 499, planId };
+      const button = document.getElementById("payRazorpayButton");
+      if (button) button.innerText = "Pay ₹499 securely";
+    }
+
+    async function payViaRazorpay() {
+      if (demoMode || !currentDoctor || !supabaseClient) {
+        showRechargeStatus("Please sign in with an active doctor account before purchasing tokens.");
+        return;
+      }
+      if (!window.Razorpay) {
+        showRechargeStatus("Razorpay Checkout could not load. Check your internet connection and retry.");
+        return;
+      }
+
+      const button = document.getElementById("payRazorpayButton");
+      if (button) { button.disabled = true; button.innerText = "Preparing secure payment…"; }
+      try {
+        selectPlan("tokens_150");
+        const { data: order, error } = await supabaseClient.functions.invoke("razorpay-create-order", {
+          body: { planId: selectedPlan.planId }
+        });
+        if (error || !order?.orderId || !order?.keyId) {
+          throw new Error(order?.error || "Payment setup is not ready yet. Please try again later.");
+        }
+
+        const checkout = new window.Razorpay({
+          key: order.keyId,
+          amount: order.amount,
+          currency: order.currency,
+          name: order.name || "ClassicAI",
+          description: order.description || "Token recharge",
+          order_id: order.orderId,
+          prefill: order.prefill || {},
+          theme: { color: "#0f766e" },
+          modal: { ondismiss: () => {
+            if (button) { button.disabled = false; button.innerText = "Pay ₹499 securely"; }
+          } },
+          handler: async function (response) {
+            showRechargeStatus("Payment submitted. Verifying with Razorpay…", false);
+            try {
+              const { data: verified, error: verifyError } = await supabaseClient.functions.invoke("razorpay-verify-payment", {
+                body: {
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature
+                }
+              });
+              if (verifyError || !verified?.success) {
+                showRechargeStatus("We could not confirm token credit yet. Do not pay again immediately. Keep payment ID " +
+                  (response.razorpay_payment_id || "") + " and contact support if your balance does not update.");
+                return;
+              }
+
+              currentDoctor.ai_tokens = verified.balance;
+              const headerBalance = document.getElementById("headerTokenCount");
+              const walletBalance = document.getElementById("walletModalTokens");
+              if (headerBalance) headerBalance.innerText = String(verified.balance);
+              if (walletBalance) walletBalance.innerText = String(verified.balance);
+              showRechargeStatus("Payment verified. " + verified.tokensAdded + " tokens added. New balance: " + verified.balance + ".", false);
+              if (button) { button.disabled = false; button.innerText = "Pay ₹499 securely"; }
+              window.setTimeout(() => closeRechargeModal(), 1800);
+            } catch (_) {
+              showRechargeStatus("Payment was submitted but verification could not finish. Keep payment ID " +
+                (response.razorpay_payment_id || "") + " and contact support before retrying.");
+            } finally {
+              if (button) { button.disabled = false; button.innerText = "Pay ₹499 securely"; }
+            }
+          }
+        });
+        checkout.on("payment.failed", function (response) {
+          const description = response?.error?.description || "Payment did not complete.";
+          showRechargeStatus(description + " If money was deducted, check your Razorpay receipt before trying again.");
+          if (button) { button.disabled = false; button.innerText = "Pay ₹499 securely"; }
+        });
+        checkout.open();
+      } catch (error) {
+        showRechargeStatus(error?.message || "Could not start payment. Please try again later.");
+        if (button) { button.disabled = false; button.innerText = "Pay ₹499 securely"; }
+      }
+    }
+
+    function copyUpiId() {
+      alert("Please use the secure Razorpay Checkout payment flow.");
+    }
+    function requestAdminRechargeWA() {
+      alert("Please use the secure Razorpay Checkout payment flow.");
+    }
 
     // AUTO-BOOT: do not enumerate doctor records with the public anon key.
     // The previous client queried every row in doctors and cached records in localStorage.
