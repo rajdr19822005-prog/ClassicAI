@@ -44,7 +44,14 @@ Deno.serve(async (req) => {
       .eq("auth_user_id", user.id).eq("status", "Active").maybeSingle();
     if (doctorError || !doctor) return json(403, { error: "An active approved doctor account is required." }, origin);
 
-    const amount = 49900;
+    const plans: Record<string, { tokens: number; amountPaise: number; label: string }> = {
+      tokens_25: { tokens: 25, amountPaise: 19900, label: "25 repertorization tokens" },
+      tokens_50: { tokens: 50, amountPaise: 34900, label: "50 repertorization tokens" },
+      tokens_100: { tokens: 100, amountPaise: 59900, label: "100 repertorization tokens" },
+    };
+    const plan = plans[String(body?.planId ?? "")];
+    if (!plan) return json(400, { error: "Unknown token package." }, origin);
+    const amount = plan.amountPaise;
     const receipt = `cai_${doctor.id}_${crypto.randomUUID().replaceAll("-", "").slice(0, 20)}`;
     const r = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",
@@ -54,7 +61,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         amount, currency: "INR", receipt,
-        notes: { product: "ClassicAI token recharge", doctor_id: String(doctor.id), plan_id: "tokens_150" },
+        notes: { product: "ClassicAI token recharge", doctor_id: String(doctor.id), plan_id: String(body.planId), tokens: String(plan.tokens) },
       }),
     });
     const order = await r.json();
@@ -64,8 +71,8 @@ Deno.serve(async (req) => {
     }
 
     const { error: insertError } = await admin.from("payment_orders").insert({
-      doctor_id: doctor.id, auth_user_id: user.id, plan_id: "tokens_150",
-      tokens: 150, amount_paise: amount, currency: "INR", razorpay_order_id: order.id, status: "created",
+      doctor_id: doctor.id, auth_user_id: user.id, plan_id: String(body.planId),
+      tokens: plan.tokens, amount_paise: amount, currency: "INR", razorpay_order_id: order.id, status: "created",
     });
     if (insertError) {
       console.error("Payment order record could not be saved", insertError);
@@ -73,7 +80,7 @@ Deno.serve(async (req) => {
     }
     return json(200, {
       keyId, orderId: order.id, amount, currency: "INR",
-      tokens: 150, name: "ClassicAI", description: "150 repertorization tokens",
+      tokens: plan.tokens, name: "ClassicAI", description: plan.label,
       prefill: { name: doctor.doctor_name ?? "", email: user.email ?? "" },
     }, origin);
   } catch (error) {
