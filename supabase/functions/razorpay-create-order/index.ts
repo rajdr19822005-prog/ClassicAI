@@ -36,7 +36,6 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    if (body?.planId !== "tokens_150") return json(400, { error: "Unknown token package." }, origin);
 
     const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const { data: doctor, error: doctorError } = await admin.from("doctors")
