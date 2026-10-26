@@ -97,7 +97,7 @@
     let sessionCases = []; // Patient data remains in memory only until secure cloud storage is ready.
     let currentStep = 1;
     let selectedRubricsList = [];
-    let selectedPlan = { tokens: 150, price: 499 };
+    let selectedPlan = { tokens: 25, price: 199, planId: "tokens_25" };
     let latestTop5Remedies = [];
 
     // ==================== SECURE LOGIN GATE ====================
@@ -1000,11 +1000,27 @@
       document.getElementById("rechargeModal")?.classList.add("hidden");
     }
 
-    function selectPlan(planId = "tokens_150") {
-      if (planId !== "tokens_150") return;
-      selectedPlan = { tokens: 150, price: 499, planId };
+    function selectPlan(planId = "tokens_25") {
+      const plans = {
+        tokens_25: { tokens: 25, price: 199 },
+        tokens_50: { tokens: 50, price: 349 },
+        tokens_100: { tokens: 100, price: 599 }
+      };
+      const plan = plans[planId];
+      if (!plan) return;
+      selectedPlan = { ...plan, planId };
+      for (const [id, key] of [["planCard25", "tokens_25"], ["planCard50", "tokens_50"], ["planCard100", "tokens_100"]]) {
+        const card = document.getElementById(id);
+        if (!card) continue;
+        const active = key === planId;
+        card.setAttribute("aria-pressed", String(active));
+        card.classList.toggle("border-teal-600", active);
+        card.classList.toggle("bg-teal-50", active);
+        card.classList.toggle("border-slate-200", !active);
+        card.classList.toggle("bg-white", !active);
+      }
       const button = document.getElementById("payRazorpayButton");
-      if (button) button.innerText = "Pay ₹499 securely";
+      if (button) button.innerText = "Pay ₹" + plan.price + " securely";
     }
 
     async function payViaRazorpay() {
@@ -1020,7 +1036,7 @@
       const button = document.getElementById("payRazorpayButton");
       if (button) { button.disabled = true; button.innerText = "Preparing secure payment…"; }
       try {
-        selectPlan("tokens_150");
+        selectPlan(selectedPlan.planId || "tokens_25");
         const { data: order, error } = await supabaseClient.functions.invoke("razorpay-create-order", {
           body: { planId: selectedPlan.planId }
         });
@@ -1038,7 +1054,7 @@
           prefill: order.prefill || {},
           theme: { color: "#0f766e" },
           modal: { ondismiss: () => {
-            if (button) { button.disabled = false; button.innerText = "Pay ₹499 securely"; }
+            if (button) { button.disabled = false; button.innerText = "Pay ₹" + selectedPlan.price + " securely"; }
           } },
           handler: async function (response) {
             showRechargeStatus("Payment submitted. Verifying with Razorpay…", false);
@@ -1062,25 +1078,25 @@
               if (headerBalance) headerBalance.innerText = String(verified.balance);
               if (walletBalance) walletBalance.innerText = String(verified.balance);
               showRechargeStatus("Payment verified. " + verified.tokensAdded + " tokens added. New balance: " + verified.balance + ".", false);
-              if (button) { button.disabled = false; button.innerText = "Pay ₹499 securely"; }
+              if (button) { button.disabled = false; button.innerText = "Pay ₹" + selectedPlan.price + " securely"; }
               window.setTimeout(() => closeRechargeModal(), 1800);
             } catch (_) {
               showRechargeStatus("Payment was submitted but verification could not finish. Keep payment ID " +
                 (response.razorpay_payment_id || "") + " and contact support before retrying.");
             } finally {
-              if (button) { button.disabled = false; button.innerText = "Pay ₹499 securely"; }
+              if (button) { button.disabled = false; button.innerText = "Pay ₹" + selectedPlan.price + " securely"; }
             }
           }
         });
         checkout.on("payment.failed", function (response) {
           const description = response?.error?.description || "Payment did not complete.";
           showRechargeStatus(description + " If money was deducted, check your Razorpay receipt before trying again.");
-          if (button) { button.disabled = false; button.innerText = "Pay ₹499 securely"; }
+          if (button) { button.disabled = false; button.innerText = "Pay ₹" + selectedPlan.price + " securely"; }
         });
         checkout.open();
       } catch (error) {
         showRechargeStatus(error?.message || "Could not start payment. Please try again later.");
-        if (button) { button.disabled = false; button.innerText = "Pay ₹499 securely"; }
+        if (button) { button.disabled = false; button.innerText = "Pay ₹" + selectedPlan.price + " securely"; }
       }
     }
 
