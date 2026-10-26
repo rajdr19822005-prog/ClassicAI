@@ -92,6 +92,13 @@
       }
     ];
 
+
+    // Safely update optional UI elements so missing hidden/modal elements cannot crash the app.
+    function setText(id, value) {
+      const element = document.getElementById(id);
+      if (element) element.innerText = value == null ? "" : String(value);
+    }
+
     let currentDoctor = null;
     let demoMode = false;
     let sessionCases = []; // Patient data remains in memory only until secure cloud storage is ready.
@@ -295,10 +302,10 @@
         return;
       }
 
-      document.getElementById("headerClinic").innerText = currentDoctor.clinic_name || "ClassicalAI_ver_3.0";
-      document.getElementById("headerDoc").innerText = `${currentDoctor.doctor_name} (${currentDoctor.reg_no})`;
-      document.getElementById("headerTokenCount").innerText = currentDoctor.ai_tokens ?? 0;
-      document.getElementById("walletModalTokens").innerText = currentDoctor.ai_tokens ?? 0;
+      setText("headerClinic", currentDoctor.clinic_name || "ClassicalAI_ver_3.0");
+      setText("headerDoc", `${currentDoctor.doctor_name} (${currentDoctor.reg_no})`);
+      setText("headerTokenCount", currentDoctor.ai_tokens ?? 0);
+      setText("walletModalTokens", currentDoctor.ai_tokens ?? 0);
 
       onDiagnosisChange();
 
@@ -914,18 +921,18 @@
       }
       rxHtml += "</ol>";
 
-      document.getElementById("pdfClinicName").innerText = currentDoctor ? currentDoctor.clinic_name : "ClassicalAI_ver_3.0";
-      document.getElementById("pdfDocName").innerText = currentDoctor ? currentDoctor.doctor_name : "Classical Homeopathic Physician";
-      document.getElementById("pdfDoctorRegNo").innerText = currentDoctor ? currentDoctor.reg_no : "—";
-      document.getElementById("pdfPrescriptionDate").innerText = new Date().toLocaleDateString('hi-IN');
-      document.getElementById("pdfPatientName").innerText = name;
-      document.getElementById("pdfPatientAgeGender").innerText = `${age} Yrs / ${gender}`;
-      document.getElementById("pdfPatientDiagnosis").innerText = dxText;
+      setText("pdfClinicName", currentDoctor ? currentDoctor.clinic_name : "ClassicalAI_ver_3.0");
+      setText("pdfDocName", currentDoctor ? currentDoctor.doctor_name : "Classical Homeopathic Physician");
+      setText("pdfDoctorRegNo", currentDoctor ? currentDoctor.reg_no : "—");
+      setText("pdfPrescriptionDate", new Date().toLocaleDateString('hi-IN'));
+      setText("pdfPatientName", name);
+      setText("pdfPatientAgeGender", `${age} Yrs / ${gender}`);
+      setText("pdfPatientDiagnosis", dxText);
       document.getElementById("pdfMedicinesList").innerHTML = rxHtml;
-      document.getElementById("pdfDietRestrictions").innerText = parhez;
-      document.getElementById("pdfFollowupDate").innerText = followup || "As advised";
+      setText("pdfDietRestrictions", parhez);
+      setText("pdfFollowupDate", followup || "As advised");
 
-      document.getElementById("pdfRubricsList").innerText = selectedRubricsList.length > 0 ? selectedRubricsList.join(", ") : "Constitutional Generals";
+      setText("pdfRubricsList", selectedRubricsList.length > 0 ? selectedRubricsList.join(", ") : "Constitutional Generals");
       const tbody = document.getElementById("pdfRepertoryTableBody");
       tbody.innerHTML = "";
 
