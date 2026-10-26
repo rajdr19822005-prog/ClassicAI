@@ -412,13 +412,18 @@
       const diagEl = document.getElementById("pDiagnosis");
       if (!diagEl) return;
       const dxKey = diagEl.value;
-      const config = diseaseConfigs[dxKey] || diseaseConfigs.Psychiatry;
+      // Keep diagnosis selection functional even if the optional disease-card catalogue is unavailable.
+      const configs = (typeof diseaseConfigs !== "undefined" && diseaseConfigs) ? diseaseConfigs : {};
+      const config = configs[dxKey] || configs.Psychiatry || {
+        title: (diagEl.selectedOptions && diagEl.selectedOptions[0]) ? diagEl.selectedOptions[0].text : dxKey,
+        cards: []
+      };
       const titleEl = document.getElementById("currentDiseaseTitle");
-      if (titleEl) titleEl.innerText = config.title;
+      if (titleEl) titleEl.innerText = config.title || dxKey;
 
       const container = document.getElementById("dynamicDiseaseCards");      if (!container) return;
       container.innerHTML = "";
-      config.cards.forEach(c => {
+      (Array.isArray(config.cards) ? config.cards : []).forEach(c => {
         const isSelected = selectedRubricsList.includes(c.text);
         const card = document.createElement("div");
         card.className = `selectable-card border rounded-xl p-2.5 bg-slate-50 ${isSelected ? 'selected' : ''}`;
