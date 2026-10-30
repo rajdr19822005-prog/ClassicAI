@@ -663,16 +663,16 @@
     function saveCurrentCaseRecord() {
       if (demoMode) {
         alert("डेमो मोड में मरीज के केस सेव नहीं होते। कृपया केवल काल्पनिक डेटा इस्तेमाल करें।");
-        return;
+        return false;
       }
       if (!currentDoctor || !currentDoctor.reg_no) {
         alert("सुरक्षित डॉक्टर लॉगिन उपलब्ध होने तक मरीज का केस सेव नहीं किया जा सकता।");
-        return;
+        return false;
       }
       const pName = document.getElementById("pName").value.trim();
       const rx1 = document.getElementById("rxMed1").value.trim();
       
-      if (!pName && !rx1) return;
+      if (!pName && !rx1) return false;
 
       const caseData = {
         id: Date.now(),
@@ -712,10 +712,15 @@
 
       // Patient data is sensitive health information. Keep it only in memory until secure per-doctor cloud storage is ready.
       sessionCases.unshift(caseData);
+      return true;
     }
 
     function finishCaseTaking() {
-      saveCurrentCaseRecord();
+      const savedToSession = saveCurrentCaseRecord();
+      if (!demoMode && !savedToSession) return;
+      if (savedToSession) {
+        alert("यह केस केवल इस सक्रिय सत्र में अस्थायी रूप से रखा गया है। लॉगआउट या पेज रीफ्रेश करने पर यह मिट जाएगा। स्थायी क्लाउड सेविंग अभी उपलब्ध नहीं है।");
+      }
 
       document.getElementById("pName").value = "";
       document.getElementById("pAge").value = "";
