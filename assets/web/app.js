@@ -660,7 +660,7 @@
     }
 
     // AUTOSAVE & CASE ARCHIVING
-    function saveCurrentCaseRecord() {
+    async function saveCurrentCaseRecord() {
       if (demoMode) {
         alert("डेमो मोड में मरीज के केस सेव नहीं होते। कृपया केवल काल्पनिक डेटा इस्तेमाल करें।");
         return false;
@@ -710,16 +710,28 @@
         saved_at: new Date().toLocaleDateString('hi-IN') + ' ' + new Date().toLocaleTimeString('hi-IN', { hour: '2-digit', minute: '2-digit' })
       };
 
-      // Patient data is sensitive health information. Keep it only in memory until secure per-doctor cloud storage is ready.
-      sessionCases.unshift(caseData);
-      return true;
+      try {
+        const { data: authData, error: authError } = await supabaseClient.auth.getUser();
+        if (authError || !authData?.user) throw new Error('Authentication required');
+        delete caseData.id;
+        delete caseData.saved_at;
+        caseData.doctor_user_id = authData.user.id;
+        const { data, error } = await supabaseClient.from('patient_cases').insert(caseData).select('*').single();
+        if (error) throw error;
+        sessionCases.unshift({ ...data, id: Number(data.id), saved_at: data.created_at ? new Date(data.created_at).toLocaleString('hi-IN') : '' });
+        return true;
+      } catch (error) {
+        console.error('Patient case save failed:', error);
+        alert('केस क्लाउड में सेव नहीं हुआ। आपका फॉर्म सुरक्षित रखा गया है। लॉगिन/इंटरनेट जाँचकर फिर प्रयास करें।');
+        return false;
+      }
     }
 
-    function finishCaseTaking() {
-      const savedToSession = saveCurrentCaseRecord();
+    async function finishCaseTaking() {
+      const savedToSession = await saveCurrentCaseRecord();
       if (!demoMode && !savedToSession) return;
       if (savedToSession) {
-        alert("यह केस केवल इस सक्रिय सत्र में अस्थायी रूप से रखा गया है। लॉगआउट या पेज रीफ्रेश करने पर यह मिट जाएगा। स्थायी क्लाउड सेविंग अभी उपलब्ध नहीं है।");
+        alert("केस आपके डॉक्टर खाते में सुरक्षित रूप से क्लाउड पर सेव हो गया है।");
       }
 
       document.getElementById("pName").value = "";
@@ -748,23 +760,32 @@
     }
 
     // HISTORY DIALOG CONTROLS
-    function openHistoryModal() {
+    async function openHistoryModal() {
       document.getElementById("historyModal").classList.remove("hidden");
-      renderCasesHistoryList();
+      await renderCasesHistoryList();
     }
 
     function closeHistoryModal() {
       document.getElementById("historyModal").classList.add("hidden");
     }
 
-    function renderCasesHistoryList(filterQuery = "") {
+    async function renderCasesHistoryList(filterQuery = "") {
       const container = document.getElementById("historyListContainer");
       if (!container) return;
 
       let cases = [];
       try {
+        const { data: authData, error: authError } = await supabaseClient.auth.getUser();
+        if (authError || !authData?.user || demoMode) throw new Error('Authentication required');
+        const { data, error } = await supabaseClient.from('patient_cases').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        sessionCases = (data || []).map(row => ({ ...row, id: Number(row.id), patient_age: row.patient_age || '--', patient_gender: row.patient_gender || '—', saved_at: row.created_at ? new Date(row.created_at).toLocaleString('hi-IN') : '' }));
         cases = [...sessionCases];
-      } catch (e) { cases = []; }
+      } catch (error) {
+        console.error('Patient case history load failed:', error);
+        container.innerHTML = '<div class="text-center py-8 text-rose-600 text-xs">केस लोड नहीं हुए। लॉगिन और इंटरनेट कनेक्शन जाँचें।</div>';
+        return;
+      }
 
       if (filterQuery) {
         const q = filterQuery.toLowerCase();
@@ -817,9 +838,9 @@
       });
     }
 
-    function filterCasesHistory() {
+    async function filterCasesHistory() {
       const q = document.getElementById("historySearchInput").value.trim();
-      renderCasesHistoryList(q);
+      await renderCasesHistoryList(q);
     }
 
     function loadCaseIntoWorkspace(caseId) {
@@ -865,12 +886,17 @@
       goToStep(1);
     }
 
-    function deleteHistoryCase(caseId) {
-      if (!confirm("क्या आप इस केस हिस्ट्री को हटाना चाहते हैं?")) return;
-      let cases = [...sessionCases];
-      cases = cases.filter(c => c.id !== caseId);
-      sessionCases = cases;
-      renderCasesHistoryList(document.getElementById("historySearchInput").value.trim());
+    async function deleteHistoryCase(caseId) {
+      if (!confirm("क्या आप इस केस हिस्ट्री को स्थायी रूप से हटाना चाहते हैं?")) return;
+      try {
+        const { data, error } = await supabaseClient.from('patient_cases').delete().eq('id', caseId).select('id').maybeSingle();
+        if (error || !data) throw error || new Error('Case not found or access denied');
+        sessionCases = sessionCases.filter(c => c.id !== Number(caseId));
+        await renderCasesHistoryList(document.getElementById('historySearchInput').value.trim());
+      } catch (error) {
+        console.error('Patient case delete failed:', error);
+        alert('केस हटाया नहीं जा सका। कृपया दोबारा प्रयास करें।');
+      }
     }
 
     function shareHistoryCaseWA(caseId) {
