@@ -101,7 +101,7 @@
 
     let currentDoctor = null;
     let demoMode = false;
-    let sessionCases = []; // Patient data remains in memory only until secure cloud storage is ready.
+    let sessionCases = []; // Cache of the authenticated doctor's cloud archive for the active session.
     let currentStep = 1;
     let selectedRubricsList = [];
     let selectedPlan = { tokens: 25, price: 199, planId: "tokens_25" };
