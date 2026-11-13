@@ -25,7 +25,7 @@ The doctor login uses Supabase Auth and an active doctor record linked to that A
 
 ## Razorpay setup (required before collecting real payments)
 
-The current token package is **150 tokens for ₹499 INR**. The price and token quantity are enforced on the server; the browser cannot choose a different amount.
+The current token packages are **25 tokens for ₹199, 50 tokens for ₹349, and 100 tokens for ₹599 INR**. The price and token quantity are enforced on the server; the browser cannot choose a different amount.
 
 1. In Razorpay Dashboard, create or obtain your **Key ID** and **Key Secret**. Start with Test Mode and use test credentials first.
 2. In [Supabase Edge Function Secrets](https://supabase.com/dashboard/project/hhnbayuaozzykbtvfvdk/functions/secrets), add:
