@@ -23,21 +23,13 @@ The doctor login uses Supabase Auth and an active doctor record linked to that A
 - **External integrations:** test CDN loading, PDF export, and WhatsApp/external links in Android WebView. These integrations require internet.
 - **Play Console:** confirm package ID, provide store listing and privacy policy, complete Data safety and applicable health/content declarations, configure testers, then upload the signed AAB under Internal testing.
 
-## Repertorization token consumption (required before enabling paid calculations)
+## Token and payment status
 
-The doctor app calls the authenticated `consume-repertorization-token` Edge Function after a local repertorization calculation. Before enabling this flow in a deployed environment:
-
-1. Review and apply `supabase/migrations/20261114000100_repertorization_token_consumption.sql` to the intended Supabase project.
-2. Deploy `supabase/functions/consume-repertorization-token`.
-3. Ensure the Edge Function has access to `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` (or the existing `MEDICAL_AI_*` equivalents).
-4. Verify the function rejects anonymous, inactive, and zero-balance accounts; verify repeated `request_id` calls deduct exactly one token.
-5. Test with a dedicated test doctor account before enabling the feature for real accounts.
-
-The migration creates a service-role-only usage ledger and an atomic, idempotent decrement routine. It does not change patient-case storage or the existing doctor/patient RLS policies. Do not run the migration against production until the schema has been backed up and reviewed.
+The current repertorization algorithm runs locally in the browser and is a heuristic ranking tool, not a paid server-side AI service. It must not deduct tokens or accept token purchases. The UI keeps recharge disabled until a billable server-side service exists and has passed authenticated usage, billing, and retry tests. Existing doctor token balances are not modified by local calculations.
 
 ## Razorpay setup (required before collecting real payments)
 
-The current token packages are **25 tokens for ₹199, 50 tokens for ₹349, and 100 tokens for ₹599 INR**. The price and token quantity are enforced on the server; the browser cannot choose a different amount.
+The previous token packages were 25 tokens for ₹199, 50 tokens for ₹349, and 100 tokens for ₹599 INR. New purchases remain disabled while repertorization is local-only.
 
 1. In Razorpay Dashboard, create or obtain your **Key ID** and **Key Secret**. Start with Test Mode and use test credentials first.
 2. In [Supabase Edge Function Secrets](https://supabase.com/dashboard/project/hhnbayuaozzykbtvfvdk/functions/secrets), add:
@@ -48,13 +40,12 @@ The current token packages are **25 tokens for ₹199, 50 tokens for ₹349, and
    `https://hhnbayuaozzykbtvfvdk.supabase.co/functions/v1/razorpay-webhook`
 4. Subscribe to `payment.captured` only. The handler acknowledges other event types without crediting tokens. Enter the same webhook secret in Razorpay and Supabase.
 5. Ensure Razorpay is configured for automatic payment capture. The app credits tokens only when Razorpay confirms the payment is captured.
-6. Test in Razorpay Test Mode with a test doctor account, confirm each package credits exactly 25, 50, or 100 tokens once, and confirm failed/cancelled payments add zero tokens. Only switch to Live Mode after these checks and your account is activated by Razorpay.
+6. Do not enable token purchases until a billable server-side service is integrated. Then test in Razorpay Test Mode, verify each package credits exactly the configured token count once, and confirm failed/cancelled payments add zero tokens before switching to Live Mode.
 
 Edge Functions:
 - `razorpay-create-order` — authenticated doctor creates a fixed-price server-side order.
 - `razorpay-verify-payment` — verifies checkout HMAC and confirms captured payment before crediting.
 - `razorpay-webhook` — validates Razorpay's webhook HMAC and safely handles duplicate delivery; it credits only `payment.captured` events.
-- `consume-repertorization-token` — validates the signed-in doctor and atomically deducts one token with an idempotency key.
 
 The webhook handler is in source control. Deploy the function and configure all three Razorpay secrets before testing payments. Never send secrets in chat, commit them to the repository, or place them in browser/mobile code.
 
