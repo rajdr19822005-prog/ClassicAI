@@ -1,6 +1,6 @@
 // Supabase Edge Function: doctor-admin
 // Required function secrets: MEDICAL_AI_PROJECT_URL, MEDICAL_AI_ANON_KEY,
-// MEDICAL_AI_SERVICE_ROLE_KEY, ADMIN_ALLOWED_ORIGIN (exact HTTPS origin).
+// MEDICAL_AI_SERVICE_ROLE_KEY. Authorization is enforced by the verified admin JWT.
 // Never place the service-role key in browser code.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 
