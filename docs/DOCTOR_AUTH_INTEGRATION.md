@@ -22,9 +22,9 @@ This branch contains the staged secure-auth integration. The Edge Function and R
 ## Important
 
 - Do not set real patient data in the current demo.
-- The Admin Edge Function permits cross-origin requests because CORS is not an authorization boundary; every privileged action still requires a verified Auth JWT with trusted `app_metadata.role = admin`. This also supports the bundled Android WebView origin (`null`).
+- The Admin Edge Function permits cross-origin requests because CORS is not an authorization boundary; every privileged action still requires a verified Auth JWT with trusted `app_metadata.role = admin`. This also supports the bundled Android WebView origin (`null`). New doctor rows start Pending with zero tokens; the legacy `access_pin` receives a random unused value and is never returned or used to authenticate.
 - If an invite is delivered but the doctor mapping fails, reconcile the account manually before retrying.
-- The Edge Function intentionally does not accept client-supplied roles, PINs, doctor registration numbers as ownership proof, or service-role credentials.
+- The Edge Function intentionally does not accept client-supplied roles, PINs, doctor registration numbers as ownership proof, or service-role credentials. The Admin UI does not expose permanent deletion; use deactivation to preserve linked records and auditability.
 
 
 ## Current implementation checkpoint (2026-10-24)
