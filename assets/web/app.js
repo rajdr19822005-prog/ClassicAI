@@ -929,12 +929,11 @@
               <td style="padding: 5px 8px; border: 1px solid #cbd5e1;"><strong>${rem.name}</strong></td>
               <td style="padding: 5px 8px; border: 1px solid #cbd5e1;">${rem.thermal} | ${rem.miasm}</td>
               <td style="padding: 5px 8px; border: 1px solid #cbd5e1;">${rem.finalScore}</td>
-              <td style="padding: 5px 8px; border: 1px solid #cbd5e1; color: #047857; font-weight: bold;">${rem.finalScore}%</td>
             </tr>
           `;
         });
       } else {
-        tbody.innerHTML = `<tr><td colspan="5" style="padding: 6px; text-align: center; color: #6b7280; border: 1px solid #cbd5e1;">Constitutional Similimum selected directly.</td></tr>`;      }
+        tbody.innerHTML = `<tr><td colspan="4" style="padding: 6px; text-align: center; color: #6b7280; border: 1px solid #cbd5e1;">Constitutional Similimum selected directly.</td></tr>`;      }
     }
 
     function sendWhatsAppPrescriptionAndRepertory() {
