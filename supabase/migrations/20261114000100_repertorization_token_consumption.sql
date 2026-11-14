@@ -61,10 +61,14 @@ begin
       return jsonb_build_object('success', false, 'error', 'Request ID is invalid or belongs to another account');
     end if;
 
+    select coalesce(d.ai_tokens, 0) into v_remaining
+    from public.doctors d
+    where d.id = v_existing.doctor_id;
+
     return jsonb_build_object(
       'success', true,
       'already_processed', true,
-      'remaining_tokens', v_existing.remaining_tokens
+      'remaining_tokens', coalesce(v_remaining, 0)
     );
   end if;
 
