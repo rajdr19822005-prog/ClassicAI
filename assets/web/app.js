@@ -573,7 +573,6 @@
 
       scoredList.sort((a, b) => b.finalScore - a.finalScore);
       latestTop5Remedies = scoredList.slice(0, 5);
-      const maxScore = latestTop5Remedies[0].finalScore || 25;
 
       document.getElementById("rxParhez").value = generateAIDietRestrictions(latestTop5Remedies[0].name, dxCategory);
 
@@ -594,9 +593,9 @@
             </div>
             <div class="text-right space-y-1">
               <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-600 text-white shadow-sm border border-emerald-400">
-                Relative score: ${r.finalScore}
+                Rank #${idx + 1}
               </span>
-              <div class="text-[10px] font-bold text-slate-500">VES Score: <strong class="text-slate-800">${r.finalScore}</strong></div>
+              <div class="text-[10px] font-bold text-slate-500">Weighted score: <strong class="text-slate-800">${r.finalScore}</strong></div>
               <button type="button" onclick="pickRemedyForPrescription('${r.name}')" class="bg-teal-600 hover:bg-teal-700 text-white font-bold px-3 py-1 rounded-lg text-[10px] shadow">
                 Pick for Rx →
               </button>
@@ -930,7 +929,7 @@
               <td style="padding: 5px 8px; border: 1px solid #cbd5e1;"><strong>${rem.name}</strong></td>
               <td style="padding: 5px 8px; border: 1px solid #cbd5e1;">${rem.thermal} | ${rem.miasm}</td>
               <td style="padding: 5px 8px; border: 1px solid #cbd5e1;">${rem.finalScore}</td>
-              <td style="padding: 5px 8px; border: 1px solid #cbd5e1; color: #047857; font-weight: bold;">${rem.calculatedProbability || 85}%</td>
+              <td style="padding: 5px 8px; border: 1px solid #cbd5e1; color: #047857; font-weight: bold;">${rem.finalScore}%</td>
             </tr>
           `;
         });
@@ -978,8 +977,21 @@
       status.classList.toggle("text-emerald-900", !isError);
     }
 
+    const TOKEN_PURCHASES_ENABLED = false;
+
     function openRechargeModal() {
-      alert("Token recharge is temporarily disabled. Current repertorization runs locally and does not use a billable server-side AI service. No payment will be taken until that service is available and tested.");
+      if (!TOKEN_PURCHASES_ENABLED) {
+        alert("Token recharge is temporarily disabled. Current repertorization runs locally and does not use a billable server-side AI service. No payment will be taken until that service is available and tested.");
+        return;
+      }
+      if (demoMode || !currentDoctor || !supabaseClient) {
+        alert("टोकन खरीदने के लिए अपने स्वीकृत डॉक्टर खाते में सुरक्षित रूप से लॉगिन करें।");
+        return;
+      }
+      const modal = document.getElementById("rechargeModal");
+      const status = document.getElementById("rechargeStatus");
+      if (status) status.classList.add("hidden");
+      if (modal) modal.classList.remove("hidden");
     }
 
     function closeRechargeModal() {
@@ -1010,8 +1022,10 @@
     }
 
     async function payViaRazorpay() {
-      showRechargeStatus("Token recharge is temporarily disabled until a billable server-side AI service is integrated and tested.");
-      return;
+      if (!TOKEN_PURCHASES_ENABLED) {
+        showRechargeStatus("Token recharge is temporarily disabled until a billable server-side AI service is integrated and tested.");
+        return;
+      }
       if (demoMode || !currentDoctor || !supabaseClient) {
         showRechargeStatus("Please sign in with an active doctor account before purchasing tokens.");
         return;
