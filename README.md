@@ -29,13 +29,14 @@ The current repertorization algorithm runs locally in the browser and is a heuri
 
 ## Razorpay setup (required before collecting real payments)
 
-The previous token packages were 25 tokens for ₹199, 50 tokens for ₹349, and 100 tokens for ₹599 INR. New purchases remain disabled while repertorization is local-only.
+The previous token packages were 25 tokens for ₹199, 50 tokens for ₹349, and 100 tokens for ₹599 INR. New purchases are disabled both in the client and by the server-side `PAYMENTS_ENABLED` gate while repertorization is local-only.
 
 1. In Razorpay Dashboard, create or obtain your **Key ID** and **Key Secret**. Start with Test Mode and use test credentials first.
 2. In [Supabase Edge Function Secrets](https://supabase.com/dashboard/project/hhnbayuaozzykbtvfvdk/functions/secrets), add:
    - `RAZORPAY_KEY_ID` — Razorpay Key ID
    - `RAZORPAY_KEY_SECRET` — Razorpay Key Secret
    - `RAZORPAY_WEBHOOK_SECRET` — a webhook secret you create in the Razorpay Dashboard
+   - `PAYMENTS_ENABLED` — keep unset or `false` until a billable server-side service is integrated and end-to-end tested; only then set to `true`
 3. In Razorpay Dashboard → Webhooks, add this endpoint:
    `https://hhnbayuaozzykbtvfvdk.supabase.co/functions/v1/razorpay-webhook`
 4. Subscribe to `payment.captured` only. The handler acknowledges other event types without crediting tokens. Enter the same webhook secret in Razorpay and Supabase.
