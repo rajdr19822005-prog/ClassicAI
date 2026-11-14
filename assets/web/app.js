@@ -573,7 +573,6 @@
 
       scoredList.sort((a, b) => b.finalScore - a.finalScore);
       latestTop5Remedies = scoredList.slice(0, 5);
-      const maxScore = latestTop5Remedies[0].finalScore || 25;
 
       document.getElementById("rxParhez").value = generateAIDietRestrictions(latestTop5Remedies[0].name, dxCategory);
 
@@ -581,12 +580,6 @@
       container.innerHTML = "";
 
       latestTop5Remedies.forEach((r, idx) => {
-        let prob = Math.round(58 + (r.finalScore / (maxScore + 6)) * 40);
-        if (idx === 0) prob = Math.min(98, Math.max(93, prob));
-        if (prob > 99) prob = 98;
-        if (prob < 52) prob = 52;
-        r.calculatedProbability = prob;
-
         const card = document.createElement("div");
         card.className = "bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2.5 shadow-sm";
         card.innerHTML = `
@@ -600,9 +593,9 @@
             </div>
             <div class="text-right space-y-1">
               <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-600 text-white shadow-sm border border-emerald-400">
-                Probability: ${prob}%
+                Rank #${idx + 1}
               </span>
-              <div class="text-[10px] font-bold text-slate-500">VES Score: <strong class="text-slate-800">${r.finalScore}</strong></div>
+              <div class="text-[10px] font-bold text-slate-500">Weighted score: <strong class="text-slate-800">${r.finalScore}</strong></div>
               <button type="button" onclick="pickRemedyForPrescription('${r.name}')" class="bg-teal-600 hover:bg-teal-700 text-white font-bold px-3 py-1 rounded-lg text-[10px] shadow">
                 Pick for Rx →
               </button>
@@ -620,30 +613,12 @@
         container.appendChild(card);
       });
 
-      // Charge only after the calculation and result cards have been generated successfully.
-      // The authenticated server endpoint performs an atomic balance update in Supabase.
-      if (!supabaseClient) throw new Error("Secure token service is unavailable. Please sign in again.");
-      const { data: tokenResult, error: tokenError } = await supabaseClient.functions.invoke("consume-repertorization-token", {
-        body: {}
-      });
-      if (tokenError) {
-        let message = tokenError.message || "Could not verify your token balance.";
-        try {
-          const details = await tokenError.context?.json();
-          if (details?.error) message = details.error;
-        } catch (_) {}
-        throw new Error(message);
-      }
-      if (!tokenResult?.success) {
-        throw new Error(tokenResult?.error || "Token balance could not be updated.");
-      }
-      currentDoctor.ai_tokens = Number(tokenResult.remaining_tokens);
-      const tokenCount = document.getElementById("headerTokenCount");
-      if (tokenCount) tokenCount.innerText = String(currentDoctor.ai_tokens);
+      // This is a local heuristic repertorization, not a paid server-side AI call.
+      // Never deduct purchased tokens for a local-only calculation.
       document.getElementById("repertorySheetContainer").classList.remove("hidden");
       } catch (error) {
         console.error("ClassicAI repertorization failed:", error);
-        alert("Repertorization could not finish: " + (error?.message || "Unexpected error") + ". If you are unsure whether the balance changed, check with the administrator before retrying.");
+        alert("Repertorization could not finish: " + (error?.message || "Unexpected error") + ". If the connection was interrupted, retry the same action; ClassicAI reuses the pending request ID to prevent a duplicate token deduction.");
       } finally {
         window.__classicaiRepertorizationRunning = false;
         if (actionButton) {
@@ -954,12 +929,11 @@
               <td style="padding: 5px 8px; border: 1px solid #cbd5e1;"><strong>${rem.name}</strong></td>
               <td style="padding: 5px 8px; border: 1px solid #cbd5e1;">${rem.thermal} | ${rem.miasm}</td>
               <td style="padding: 5px 8px; border: 1px solid #cbd5e1;">${rem.finalScore}</td>
-              <td style="padding: 5px 8px; border: 1px solid #cbd5e1; color: #047857; font-weight: bold;">${rem.calculatedProbability || 85}%</td>
             </tr>
           `;
         });
       } else {
-        tbody.innerHTML = `<tr><td colspan="5" style="padding: 6px; text-align: center; color: #6b7280; border: 1px solid #cbd5e1;">Constitutional Similimum selected directly.</td></tr>`;      }
+        tbody.innerHTML = `<tr><td colspan="4" style="padding: 6px; text-align: center; color: #6b7280; border: 1px solid #cbd5e1;">Constitutional Similimum selected directly.</td></tr>`;      }
     }
 
     function sendWhatsAppPrescriptionAndRepertory() {
@@ -984,7 +958,7 @@
 
       const rubricsCovered = selectedRubricsList.slice(0, 4).join(", ") || "Synthesis & GNM Totality";
 
-      const msg = `*${currentDoctor ? currentDoctor.clinic_name : 'ClassicalAI_ver_3.0'}*\n*${currentDoctor ? currentDoctor.doctor_name : 'Physician'}*\n----------------\n*रोगी:* ${name}\n*रोग निदान:* ${dxText}\n*टोटैलिटी आधार:* ${rubricsCovered}\n\n*Rx (होम्योपैथिक पर्चा):*\n${rx}\n*AI जनित परहेज एवं निर्देश:*\n${parhez}\n\n*अगला फॉलो-अप:* ${followup}\n\n_ClassicalAI_ver_3.0 Protocol_`;
+      const msg = `*${currentDoctor ? currentDoctor.clinic_name : 'ClassicalAI_ver_3.0'}*\n*${currentDoctor ? currentDoctor.doctor_name : 'Physician'}*\n----------------\n*रोगी:* ${name}\n*रोग निदान:* ${dxText}\n*टोटैलिटी आधार:* ${rubricsCovered}\n\n*Rx (होम्योपैथिक पर्चा):*\n${rx}\n*परहेज एवं सामान्य निर्देश:*\n${parhez}\n\n*अगला फॉलो-अप:* ${followup}\n\n_ClassicalAI_ver_3.0 Protocol_`;
       window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
     }
 
@@ -1002,7 +976,13 @@
       status.classList.toggle("text-emerald-900", !isError);
     }
 
+    const TOKEN_PURCHASES_ENABLED = false;
+
     function openRechargeModal() {
+      if (!TOKEN_PURCHASES_ENABLED) {
+        alert("Token recharge is temporarily disabled. Current repertorization runs locally and does not use a billable server-side AI service. No payment will be taken until that service is available and tested.");
+        return;
+      }
       if (demoMode || !currentDoctor || !supabaseClient) {
         alert("टोकन खरीदने के लिए अपने स्वीकृत डॉक्टर खाते में सुरक्षित रूप से लॉगिन करें।");
         return;
@@ -1041,6 +1021,10 @@
     }
 
     async function payViaRazorpay() {
+      if (!TOKEN_PURCHASES_ENABLED) {
+        showRechargeStatus("Token recharge is temporarily disabled until a billable server-side AI service is integrated and tested.");
+        return;
+      }
       if (demoMode || !currentDoctor || !supabaseClient) {
         showRechargeStatus("Please sign in with an active doctor account before purchasing tokens.");
         return;
