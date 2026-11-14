@@ -653,7 +653,7 @@
       document.getElementById("repertorySheetContainer").classList.remove("hidden");
       } catch (error) {
         console.error("ClassicAI repertorization failed:", error);
-        alert("Repertorization could not finish: " + (error?.message || "Unexpected error") + ". If you are unsure whether the balance changed, check with the administrator before retrying.");
+        alert("Repertorization could not finish: " + (error?.message || "Unexpected error") + ". If the connection was interrupted, retry the same action; ClassicAI reuses the pending request ID to prevent a duplicate token deduction.");
       } finally {
         window.__classicaiRepertorizationRunning = false;
         if (actionButton) {
