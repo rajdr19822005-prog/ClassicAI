@@ -34,16 +34,17 @@ The current token packages are **25 tokens for ₹199, 50 tokens for ₹349, and
    - `RAZORPAY_WEBHOOK_SECRET` — a webhook secret you create in the Razorpay Dashboard
 3. In Razorpay Dashboard → Webhooks, add this endpoint:
    `https://hhnbayuaozzykbtvfvdk.supabase.co/functions/v1/razorpay-webhook`
-4. Subscribe to `payment.captured` and `order.paid`. Enter the same webhook secret in Razorpay and Supabase.
+4. Subscribe to `payment.captured` only. The handler acknowledges other event types without crediting tokens. Enter the same webhook secret in Razorpay and Supabase.
 5. Ensure Razorpay is configured for automatic payment capture. The app credits tokens only when Razorpay confirms the payment is captured.
-6. Test in Razorpay Test Mode with a test doctor account, confirm one successful payment adds exactly 150 tokens once, and confirm failed/cancelled payments add zero tokens. Only switch to Live Mode after these checks and your account is activated by Razorpay.
+6. Test in Razorpay Test Mode with a test doctor account, confirm each package credits exactly 25, 50, or 100 tokens once, and confirm failed/cancelled payments add zero tokens. Only switch to Live Mode after these checks and your account is activated by Razorpay.
 
 Edge Functions:
 - `razorpay-create-order` — authenticated doctor creates a fixed-price server-side order.
 - `razorpay-verify-payment` — verifies checkout HMAC and confirms captured payment before crediting.
-- `razorpay-webhook` — validates Razorpay's webhook HMAC and safely handles duplicate delivery.
+- `razorpay-webhook` — validates Razorpay's webhook HMAC and safely handles duplicate delivery; it credits only `payment.captured` events.
+- `consume-repertorization-token` — validates the signed-in doctor and atomically deducts one token with an idempotency key.
 
-The webhook URL and function code are deployed, but payment processing returns a configuration error until all three Razorpay secrets are set. Never send secrets in chat, commit them to the repository, or place them in browser/mobile code.
+The webhook handler is in source control. Deploy the function and configure all three Razorpay secrets before testing payments. Never send secrets in chat, commit them to the repository, or place them in browser/mobile code.
 
 ## GitHub Actions signing
 
