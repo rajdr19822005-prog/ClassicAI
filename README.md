@@ -23,6 +23,18 @@ The doctor login uses Supabase Auth and an active doctor record linked to that A
 - **External integrations:** test CDN loading, PDF export, and WhatsApp/external links in Android WebView. These integrations require internet.
 - **Play Console:** confirm package ID, provide store listing and privacy policy, complete Data safety and applicable health/content declarations, configure testers, then upload the signed AAB under Internal testing.
 
+## Repertorization token consumption (required before enabling paid calculations)
+
+The doctor app calls the authenticated `consume-repertorization-token` Edge Function after a local repertorization calculation. Before enabling this flow in a deployed environment:
+
+1. Review and apply `supabase/migrations/20261114000100_repertorization_token_consumption.sql` to the intended Supabase project.
+2. Deploy `supabase/functions/consume-repertorization-token`.
+3. Ensure the Edge Function has access to `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` (or the existing `MEDICAL_AI_*` equivalents).
+4. Verify the function rejects anonymous, inactive, and zero-balance accounts; verify repeated `request_id` calls deduct exactly one token.
+5. Test with a dedicated test doctor account before enabling the feature for real accounts.
+
+The migration creates a service-role-only usage ledger and an atomic, idempotent decrement routine. It does not change patient-case storage or the existing doctor/patient RLS policies. Do not run the migration against production until the schema has been backed up and reviewed.
+
 ## Razorpay setup (required before collecting real payments)
 
 The current token packages are **25 tokens for ₹199, 50 tokens for ₹349, and 100 tokens for ₹599 INR**. The price and token quantity are enforced on the server; the browser cannot choose a different amount.
