@@ -623,8 +623,14 @@
       // Charge only after the calculation and result cards have been generated successfully.
       // The authenticated server endpoint performs an atomic balance update in Supabase.
       if (!supabaseClient) throw new Error("Secure token service is unavailable. Please sign in again.");
+      const tokenRequestId = window.__classicaiPendingTokenRequestId || (window.__classicaiPendingTokenRequestId = (() => {
+        if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+        const bytes = new Uint8Array(16);
+        window.crypto.getRandomValues(bytes);
+        return Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+      })());
       const { data: tokenResult, error: tokenError } = await supabaseClient.functions.invoke("consume-repertorization-token", {
-        body: {}
+        body: { request_id: tokenRequestId }
       });
       if (tokenError) {
         let message = tokenError.message || "Could not verify your token balance.";
@@ -637,6 +643,7 @@
       if (!tokenResult?.success) {
         throw new Error(tokenResult?.error || "Token balance could not be updated.");
       }
+      window.__classicaiPendingTokenRequestId = null;
       currentDoctor.ai_tokens = Number(tokenResult.remaining_tokens);
       const tokenCount = document.getElementById("headerTokenCount");
       if (tokenCount) tokenCount.innerText = String(currentDoctor.ai_tokens);
