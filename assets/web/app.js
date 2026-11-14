@@ -581,12 +581,6 @@
       container.innerHTML = "";
 
       latestTop5Remedies.forEach((r, idx) => {
-        let prob = Math.round(58 + (r.finalScore / (maxScore + 6)) * 40);
-        if (idx === 0) prob = Math.min(98, Math.max(93, prob));
-        if (prob > 99) prob = 98;
-        if (prob < 52) prob = 52;
-        r.calculatedProbability = prob;
-
         const card = document.createElement("div");
         card.className = "bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2.5 shadow-sm";
         card.innerHTML = `
@@ -600,7 +594,7 @@
             </div>
             <div class="text-right space-y-1">
               <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-600 text-white shadow-sm border border-emerald-400">
-                Probability: ${prob}%
+                Relative score: ${r.finalScore}
               </span>
               <div class="text-[10px] font-bold text-slate-500">VES Score: <strong class="text-slate-800">${r.finalScore}</strong></div>
               <button type="button" onclick="pickRemedyForPrescription('${r.name}')" class="bg-teal-600 hover:bg-teal-700 text-white font-bold px-3 py-1 rounded-lg text-[10px] shadow">
@@ -620,36 +614,8 @@
         container.appendChild(card);
       });
 
-      // Charge only after the calculation and result cards have been generated successfully.
-      // The authenticated server endpoint performs an atomic balance update in Supabase.
-      if (!supabaseClient) throw new Error("Secure token service is unavailable. Please sign in again.");
-      const tokenRequestId = window.__classicaiPendingTokenRequestId || (window.__classicaiPendingTokenRequestId = (() => {
-        if (window.crypto?.randomUUID) return window.crypto.randomUUID();
-        const bytes = new Uint8Array(16);
-        window.crypto.getRandomValues(bytes);
-        bytes[6] = (bytes[6] & 0x0f) | 0x40;
-        bytes[8] = (bytes[8] & 0x3f) | 0x80;
-        const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
-        return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-      })());
-      const { data: tokenResult, error: tokenError } = await supabaseClient.functions.invoke("consume-repertorization-token", {
-        body: { request_id: tokenRequestId }
-      });
-      if (tokenError) {
-        let message = tokenError.message || "Could not verify your token balance.";
-        try {
-          const details = await tokenError.context?.json();
-          if (details?.error) message = details.error;
-        } catch (_) {}
-        throw new Error(message);
-      }
-      if (!tokenResult?.success) {
-        throw new Error(tokenResult?.error || "Token balance could not be updated.");
-      }
-      window.__classicaiPendingTokenRequestId = null;
-      currentDoctor.ai_tokens = Number(tokenResult.remaining_tokens);
-      const tokenCount = document.getElementById("headerTokenCount");
-      if (tokenCount) tokenCount.innerText = String(currentDoctor.ai_tokens);
+      // This is a local heuristic repertorization, not a paid server-side AI call.
+      // Never deduct purchased tokens for a local-only calculation.
       document.getElementById("repertorySheetContainer").classList.remove("hidden");
       } catch (error) {
         console.error("ClassicAI repertorization failed:", error);
@@ -994,7 +960,7 @@
 
       const rubricsCovered = selectedRubricsList.slice(0, 4).join(", ") || "Synthesis & GNM Totality";
 
-      const msg = `*${currentDoctor ? currentDoctor.clinic_name : 'ClassicalAI_ver_3.0'}*\n*${currentDoctor ? currentDoctor.doctor_name : 'Physician'}*\n----------------\n*रोगी:* ${name}\n*रोग निदान:* ${dxText}\n*टोटैलिटी आधार:* ${rubricsCovered}\n\n*Rx (होम्योपैथिक पर्चा):*\n${rx}\n*AI जनित परहेज एवं निर्देश:*\n${parhez}\n\n*अगला फॉलो-अप:* ${followup}\n\n_ClassicalAI_ver_3.0 Protocol_`;
+      const msg = `*${currentDoctor ? currentDoctor.clinic_name : 'ClassicalAI_ver_3.0'}*\n*${currentDoctor ? currentDoctor.doctor_name : 'Physician'}*\n----------------\n*रोगी:* ${name}\n*रोग निदान:* ${dxText}\n*टोटैलिटी आधार:* ${rubricsCovered}\n\n*Rx (होम्योपैथिक पर्चा):*\n${rx}\n*परहेज एवं सामान्य निर्देश:*\n${parhez}\n\n*अगला फॉलो-अप:* ${followup}\n\n_ClassicalAI_ver_3.0 Protocol_`;
       window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
     }
 
@@ -1013,14 +979,7 @@
     }
 
     function openRechargeModal() {
-      if (demoMode || !currentDoctor || !supabaseClient) {
-        alert("टोकन खरीदने के लिए अपने स्वीकृत डॉक्टर खाते में सुरक्षित रूप से लॉगिन करें।");
-        return;
-      }
-      const modal = document.getElementById("rechargeModal");
-      const status = document.getElementById("rechargeStatus");
-      if (status) status.classList.add("hidden");
-      if (modal) modal.classList.remove("hidden");
+      alert("Token recharge is temporarily disabled. Current repertorization runs locally and does not use a billable server-side AI service. No payment will be taken until that service is available and tested.");
     }
 
     function closeRechargeModal() {
@@ -1051,6 +1010,8 @@
     }
 
     async function payViaRazorpay() {
+      showRechargeStatus("Token recharge is temporarily disabled until a billable server-side AI service is integrated and tested.");
+      return;
       if (demoMode || !currentDoctor || !supabaseClient) {
         showRechargeStatus("Please sign in with an active doctor account before purchasing tokens.");
         return;
