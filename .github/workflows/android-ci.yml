@@ -33,6 +33,9 @@ jobs:
           p = Path('android/app/build.gradle.kts')
           s = p.read_text()
           s = s.replace('applicationId = "com.classicai.classicai"', 'applicationId = "com.classicai.mobile"')
+          s = re.sub(r"targetSdk\\s*=\\s*flutter\\.targetSdkVersion", "targetSdk = 36", s)
+          if "targetSdk = 36" not in s:
+              raise SystemExit("Could not pin Android target SDK to API 36.")
           p.write_text(s)
           import re
           manifest = Path('android/app/src/main/AndroidManifest.xml')
@@ -147,6 +150,9 @@ jobs:
           p = Path('android/app/build.gradle.kts')
           s = p.read_text()
           s = s.replace('applicationId = "com.classicai.classicai"', 'applicationId = "com.classicai.mobile"')
+          s = re.sub(r"targetSdk\\s*=\\s*flutter\\.targetSdkVersion", "targetSdk = 36", s)
+          if "targetSdk = 36" not in s:
+              raise SystemExit("Could not pin Android target SDK to API 36.")
           if 'import java.util.Properties' not in s:
               s = 'import java.io.FileInputStream\nimport java.util.Properties\n\n' + s
           match = re.search(r'plugins\s*\{.*?\n\}', s, re.S)
