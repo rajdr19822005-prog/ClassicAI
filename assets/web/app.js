@@ -979,18 +979,35 @@
     const TOKEN_PURCHASES_ENABLED = false;
 
     function openRechargeModal() {
-      if (!TOKEN_PURCHASES_ENABLED) {
-        alert("Token recharge is temporarily disabled. Current repertorization runs locally and does not use a billable server-side AI service. No payment will be taken until that service is available and tested.");
-        return;
-      }
-      if (demoMode || !currentDoctor || !supabaseClient) {
-        alert("टोकन खरीदने के लिए अपने स्वीकृत डॉक्टर खाते में सुरक्षित रूप से लॉगिन करें।");
-        return;
-      }
       const modal = document.getElementById("rechargeModal");
+      const button = document.getElementById("payRazorpayButton");
+      if (!modal) return;
+
+      modal.classList.remove("hidden");
+      if (!TOKEN_PURCHASES_ENABLED) {
+        if (button) {
+          button.disabled = true;
+          button.innerText = "Purchases temporarily paused";
+        }
+        showRechargeStatus(
+          "Recharge packages are shown for reference. Payments are paused because current repertorization runs locally and is not yet a billable server-side service. No payment can be taken.",
+          true
+        );
+        return;
+      }
+
+      if (demoMode || !currentDoctor || !supabaseClient) {
+        if (button) button.disabled = true;
+        showRechargeStatus("Sign in with an approved doctor account to purchase tokens.", true);
+        return;
+      }
+
       const status = document.getElementById("rechargeStatus");
       if (status) status.classList.add("hidden");
-      if (modal) modal.classList.remove("hidden");
+      if (button) {
+        button.disabled = false;
+        button.innerText = "Pay ₹" + (selectedPlan?.price || 199) + " securely";
+      }
     }
 
     function closeRechargeModal() {
@@ -1017,7 +1034,10 @@
         card.classList.toggle("bg-white", !active);
       }
       const button = document.getElementById("payRazorpayButton");
-      if (button) button.innerText = "Pay ₹" + plan.price + " securely";
+      if (button) {
+        button.innerText = TOKEN_PURCHASES_ENABLED ? "Pay ₹" + plan.price + " securely" : "Purchases temporarily paused";
+        button.disabled = !TOKEN_PURCHASES_ENABLED;
+      }
     }
 
     async function payViaRazorpay() {
