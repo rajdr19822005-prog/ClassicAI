@@ -99,7 +99,7 @@
       </div>
     </div>
 
-    <!-- BASIC SUBSCRIPTION: checkout remains disabled until server-side entitlement and payment verification are complete -->
+    <!-- BASIC SUBSCRIPTION: server-verified 12-month entitlement and 50-credit plan -->
     <div id="rechargeModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm p-4 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="rechargeTitle">
       <div class="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
         <div class="flex items-start justify-between gap-3">
@@ -108,7 +108,7 @@
             <h2 id="rechargeTitle" class="text-lg font-extrabold text-slate-900">12-Month Subscription</h2>
             <p class="text-xs text-slate-500 mt-1">One subscription for the core repertorisation workflow</p>
           </div>
-          <button type="button" onclick="closeRechargeModal()" aria-label="Close subscription details" class="rounded-lg px-3 py-1 text-slate-500 hover:bg-slate-100">✕</button>
+          <button type="button" id="subscriptionCloseX" onclick="closeRechargeModal()" aria-label="Close subscription details" class="rounded-lg px-3 py-1 text-slate-500 hover:bg-slate-100">✕</button>
         </div>
 
         <div class="rounded-2xl border-2 border-teal-600 bg-teal-50 p-4 text-center">
@@ -130,10 +130,10 @@
           <p class="text-[11px] leading-relaxed text-slate-600">Clinic Management, Medicine Catalogue & Inventory, Billing & PDF tools, SMS/WhatsApp Automation, Live AI Agent and other premium modules will require an active Basic subscription. Some modules may have separate add-on charges.</p>
         </div>
 
-        <p class="text-[10px] leading-relaxed text-slate-500">Important: the current repertorisation engine is a local heuristic ranking tool, not a generative AI model. The subscription checkout and entitlement gate are not yet active. No payment will be taken and no credits will be added from this screen. Existing balances and transaction history remain unchanged.</p>
+        <p class="text-[10px] leading-relaxed text-slate-500">The current repertorisation engine is a local heuristic ranking tool, not a generative AI model. Subscription activation and credits are granted only after Razorpay confirms a captured payment on the server.</p>
         <p id="rechargeStatus" class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900" role="status">Subscription purchase is temporarily unavailable while secure server-side checkout, activation and expiry checks are completed.</p>
         <button id="payRazorpayButton" type="button" onclick="payViaRazorpay()" disabled class="w-full rounded-xl bg-slate-400 disabled:opacity-70 text-white font-bold py-3 cursor-not-allowed" title="Secure subscription checkout is not active">Subscription checkout not active</button>
-        <button type="button" onclick="closeRechargeModal()" class="w-full rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 text-sm">Close</button>
+        <button id="subscriptionCloseFooter" type="button" onclick="closeRechargeModal()" class="w-full rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 text-sm">Close</button>
       </div>
     </div>
 
