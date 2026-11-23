@@ -94,5 +94,5 @@ begin
 end;
 $$;
 
-revoke all on function public.consume_repertorization_token(uuid) from public, anon;
+revoke all on function public.consume_repertorization_token(uuid) from public, anon, authenticated;
 grant execute on function public.consume_repertorization_token(uuid) to authenticated;
