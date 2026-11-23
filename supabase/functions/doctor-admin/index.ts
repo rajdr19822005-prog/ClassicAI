@@ -1,19 +1,19 @@
 // Supabase Edge Function: doctor-admin
 // Required function secrets: MEDICAL_AI_PROJECT_URL, MEDICAL_AI_ANON_KEY,
-// MEDICAL_AI_SERVICE_ROLE_KEY, ADMIN_ALLOWED_ORIGIN (exact HTTPS origin).
+// MEDICAL_AI_SERVICE_ROLE_KEY. Authorization is enforced by the verified admin JWT.
 // Never place the service-role key in browser code.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 
 const url = Deno.env.get("MEDICAL_AI_PROJECT_URL")!;
 const anonKey = Deno.env.get("MEDICAL_AI_ANON_KEY")!;
 const serviceKey = Deno.env.get("MEDICAL_AI_SERVICE_ROLE_KEY")!;
-const allowedOrigin = Deno.env.get("ADMIN_ALLOWED_ORIGIN")!;
 
+// CORS is not an authorization boundary. The function requires a verified JWT
+// with trusted app_metadata.role=admin before any privileged action.
 const corsHeaders = {
-  "Access-Control-Allow-Origin": allowedOrigin,
+  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Vary": "Origin",
 };
 
 const json = (status: number, body: unknown) =>
@@ -23,9 +23,6 @@ const json = (status: number, body: unknown) =>
   });
 
 Deno.serve(async (req) => {
-  if (!allowedOrigin || req.headers.get("origin") !== allowedOrigin) {
-    return new Response("Forbidden origin", { status: 403 });
-  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json(405, { error: "Method not allowed" });
 
@@ -56,6 +53,41 @@ Deno.serve(async (req) => {
         .order("id", { ascending: false });
       if (error) throw error;
       return json(200, { doctors: data ?? [] });
+    }
+
+    if (action === "create_doctor") {
+      const doctor_name = String(body?.doctor_name ?? "").trim();
+      const clinic_name = String(body?.clinic_name ?? "").trim();
+      const reg_no = String(body?.reg_no ?? "").trim();
+      const whatsapp_no = String(body?.whatsapp_no ?? "").trim();
+      if (!doctor_name || doctor_name.length > 120 ||
+          !reg_no || reg_no.length > 80 ||
+          clinic_name.length > 160 || whatsapp_no.length > 30) {
+        return json(400, { error: "Enter a valid doctor name and registration number; optional fields exceed their limits." });
+      }
+      if (whatsapp_no && !/^\+?[0-9 ()-]{7,30}$/.test(whatsapp_no)) {
+        return json(400, { error: "Enter a valid WhatsApp number with country code." });
+      }
+
+      // Legacy column remains required in some deployments. Generate an unused
+      // random value server-side; never return it or use it for authentication.
+      const random = new Uint32Array(1);
+      crypto.getRandomValues(random);
+      const access_pin = String(100000 + (random[0] % 900000));
+      const { data: doctor, error } = await admin.from("doctors").insert({
+        doctor_name,
+        clinic_name: clinic_name || null,
+        reg_no,
+        whatsapp_no: whatsapp_no || null,
+        access_pin,
+        ai_tokens: 0,
+        status: "Pending",
+      }).select("id,doctor_name,clinic_name,reg_no,whatsapp_no,ai_tokens,status,auth_user_id,created_at").single();
+      if (error) {
+        if (error.code === "23505") return json(409, { error: "A doctor with this registration number already exists." });
+        throw error;
+      }
+      return json(201, { success: true, doctor });
     }
 
     if (action === "invite_doctor") {

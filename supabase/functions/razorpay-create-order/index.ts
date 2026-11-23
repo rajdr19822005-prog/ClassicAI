@@ -9,6 +9,7 @@ const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("ME
 })();
 const keyId = Deno.env.get("RAZORPAY_KEY_ID") ?? "";
 const keySecret = Deno.env.get("RAZORPAY_KEY_SECRET") ?? "";
+const paymentsEnabled = Deno.env.get("PAYMENTS_ENABLED") === "true";
 const allowedOrigins = new Set(["https://classicai.vercel.app", "null", "http://localhost", "http://127.0.0.1"]);
 const cors = (origin: string | null) => ({
   "Access-Control-Allow-Origin": origin && allowedOrigins.has(origin) ? origin : "https://classicai.vercel.app",
@@ -26,6 +27,7 @@ Deno.serve(async (req) => {
   if (origin && !allowedOrigins.has(origin)) return json(403, { error: "Origin not allowed" }, origin);
   if (!supabaseUrl || !anonKey || !serviceKey) return json(503, { error: "Payment service is not configured yet." }, origin);
   if (!keyId || !keySecret) return json(503, { error: "Razorpay credentials have not been configured yet." }, origin);
+  if (!paymentsEnabled) return json(503, { error: "Token purchases are paused until a billable server-side service is available and tested." }, origin);
 
   const bearer = req.headers.get("Authorization") ?? "";
   if (!bearer.startsWith("Bearer ")) return json(401, { error: "Please sign in again." }, origin);

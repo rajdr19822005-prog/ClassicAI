@@ -129,9 +129,9 @@
             </div>
           </button>
         </div>
-        <p class="text-xs leading-relaxed text-slate-500">Tokens are added only after the payment is verified by ClassicAI's server. Do not close the payment window until Razorpay reports the result.</p>
-        <p id="rechargeStatus" class="hidden rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900" role="status"></p>
-        <button id="payRazorpayButton" type="button" onclick="payViaRazorpay()" class="w-full rounded-xl bg-teal-700 hover:bg-teal-800 disabled:opacity-50 text-white font-bold py-3">Pay ₹199 securely</button>
+        <p class="text-xs leading-relaxed text-slate-500">When purchases are enabled, tokens will be added only after ClassicAI verifies a captured payment with Razorpay. Payment history and existing transaction records are not displayed or modified here.</p>
+        <p id="rechargeStatus" class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900" role="status">Recharge packages are available to preview. Purchases are temporarily paused; no payment can be taken.</p>
+        <button id="payRazorpayButton" type="button" onclick="payViaRazorpay()" disabled class="w-full rounded-xl bg-slate-400 disabled:opacity-70 text-white font-bold py-3 cursor-not-allowed" title="Purchases are temporarily paused">Purchases temporarily paused</button>
         <button type="button" onclick="closeRechargeModal()" class="w-full rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 text-sm">Cancel</button>
       </div>
     </div>
@@ -534,6 +534,9 @@
 
           <!-- TOP 5 REMEDIES LIST -->
           <div id="repertorySheetContainer" class="space-y-3 hidden">
+            <div class="rounded-lg border border-amber-200 bg-amber-50 p-2 text-[10px] leading-relaxed text-amber-950">
+              Local heuristic ranking only — scores are not validated probabilities, diagnoses, or treatment recommendations. Verify repertory sources and apply independent clinical judgment. No tokens are deducted for this local calculation.
+            </div>
             <div class="flex justify-between items-center">
               <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Top 5 Remedies (VES & Synthesis Weighted)</h3>
               <span class="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Repertorized</span>
@@ -670,8 +673,7 @@
               <tr style="background-color: #0f766e; color: #ffffff;">                <th style="padding: 5px 8px; border: 1px solid #cbd5e1;">#</th>
                 <th style="padding: 5px 8px; border: 1px solid #cbd5e1;">Remedy</th>
                 <th style="padding: 5px 8px; border: 1px solid #cbd5e1;">Thermal & Miasm</th>
-                <th style="padding: 5px 8px; border: 1px solid #cbd5e1;">VES Score</th>
-                <th style="padding: 5px 8px; border: 1px solid #cbd5e1;">Probability</th>
+                <th style="padding: 5px 8px; border: 1px solid #cbd5e1;">Weighted score</th>
               </tr>
             </thead>
             <tbody id="pdfRepertoryTableBody"></tbody>

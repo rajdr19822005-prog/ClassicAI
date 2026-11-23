@@ -23,27 +23,32 @@ The doctor login uses Supabase Auth and an active doctor record linked to that A
 - **External integrations:** test CDN loading, PDF export, and WhatsApp/external links in Android WebView. These integrations require internet.
 - **Play Console:** confirm package ID, provide store listing and privacy policy, complete Data safety and applicable health/content declarations, configure testers, then upload the signed AAB under Internal testing.
 
+## Token and payment status
+
+The current repertorization algorithm runs locally in the browser and is a heuristic ranking tool, not a paid server-side AI service. It must not deduct tokens or accept token purchases. The UI keeps recharge disabled until a billable server-side service exists and has passed authenticated usage, billing, and retry tests. Existing doctor token balances are not modified by local calculations.
+
 ## Razorpay setup (required before collecting real payments)
 
-The current token packages are **25 tokens for ₹199, 50 tokens for ₹349, and 100 tokens for ₹599 INR**. The price and token quantity are enforced on the server; the browser cannot choose a different amount.
+The previous token packages were 25 tokens for ₹199, 50 tokens for ₹349, and 100 tokens for ₹599 INR. New purchases are disabled both in the client and by the server-side `PAYMENTS_ENABLED` gate while repertorization is local-only.
 
 1. In Razorpay Dashboard, create or obtain your **Key ID** and **Key Secret**. Start with Test Mode and use test credentials first.
 2. In [Supabase Edge Function Secrets](https://supabase.com/dashboard/project/hhnbayuaozzykbtvfvdk/functions/secrets), add:
    - `RAZORPAY_KEY_ID` — Razorpay Key ID
    - `RAZORPAY_KEY_SECRET` — Razorpay Key Secret
    - `RAZORPAY_WEBHOOK_SECRET` — a webhook secret you create in the Razorpay Dashboard
+   - `PAYMENTS_ENABLED` — keep unset or `false` until a billable server-side service is integrated and end-to-end tested; only then set to `true`
 3. In Razorpay Dashboard → Webhooks, add this endpoint:
    `https://hhnbayuaozzykbtvfvdk.supabase.co/functions/v1/razorpay-webhook`
-4. Subscribe to `payment.captured` and `order.paid`. Enter the same webhook secret in Razorpay and Supabase.
+4. Subscribe to `payment.captured` only. The handler acknowledges other event types without crediting tokens. Enter the same webhook secret in Razorpay and Supabase.
 5. Ensure Razorpay is configured for automatic payment capture. The app credits tokens only when Razorpay confirms the payment is captured.
-6. Test in Razorpay Test Mode with a test doctor account, confirm one successful payment adds exactly 150 tokens once, and confirm failed/cancelled payments add zero tokens. Only switch to Live Mode after these checks and your account is activated by Razorpay.
+6. Do not enable token purchases until a billable server-side service is integrated. Then test in Razorpay Test Mode, verify each package credits exactly the configured token count once, and confirm failed/cancelled payments add zero tokens before switching to Live Mode.
 
 Edge Functions:
 - `razorpay-create-order` — authenticated doctor creates a fixed-price server-side order.
 - `razorpay-verify-payment` — verifies checkout HMAC and confirms captured payment before crediting.
-- `razorpay-webhook` — validates Razorpay's webhook HMAC and safely handles duplicate delivery.
+- `razorpay-webhook` — validates Razorpay's webhook HMAC and safely handles duplicate delivery; it credits only `payment.captured` events.
 
-The webhook URL and function code are deployed, but payment processing returns a configuration error until all three Razorpay secrets are set. Never send secrets in chat, commit them to the repository, or place them in browser/mobile code.
+The webhook handler is in source control. Deploy the function and configure all three Razorpay secrets before testing payments. Never send secrets in chat, commit them to the repository, or place them in browser/mobile code.
 
 ## GitHub Actions signing
 

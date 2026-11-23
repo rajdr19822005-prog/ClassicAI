@@ -36,11 +36,13 @@ Deno.serve(async (req) => {
 
   try {
     const event = JSON.parse(rawBody);
-    if (!["payment.captured", "order.paid"].includes(event?.event)) return json(200, { received: true, ignored: true });
+    // Token crediting is driven only by payment.captured, whose payload
+    // includes the captured payment entity. order.paid is acknowledged below
+    // as an informational event to avoid retries without a payment identifier.
+    if (event?.event !== "payment.captured") return json(200, { received: true, ignored: true });
 
     const payment = event?.payload?.payment?.entity;
-    const order = event?.payload?.order?.entity;
-    const orderId = String(payment?.order_id ?? order?.id ?? "");
+    const orderId = String(payment?.order_id ?? "");
     const paymentId = String(payment?.id ?? "");
     if (!orderId || !paymentId) return json(400, { error: "Missing payment identifiers" });
 
