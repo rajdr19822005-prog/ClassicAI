@@ -108,10 +108,19 @@
     return getNoteFields().map(el => el.value || "").join(" ").toLocaleLowerCase();
   }
 
+  function phraseMatches(text, term) {
+    const value = term.toLocaleLowerCase();
+    if (/^[\x00-\x7F]+$/.test(value)) {
+      return new RegExp("(^|[^a-z0-9])" + value + "($|[^a-z0-9])", "i").test(text);
+    }
+    return text.includes(value);
+  }
+
   function findSuggestedRubrics() {
     const text = getNoteText();
     if (!text.trim()) return [];
-    return noteRubricCatalog.filter(item => item.terms.some(term => text.includes(term.toLocaleLowerCase())));
+    const matches = noteRubricCatalog.filter(item => item.terms.some(term => phraseMatches(text, term)));
+    return matches.filter(item => !(item.id === "stomach-thirst" && matches.some(match => match.id === "stomach-thirstless")));
   }
 
   function isRubricSelected(item) {
@@ -133,7 +142,7 @@
     }
     host.innerHTML = matches.map(item => {
       const checked = isRubricSelected(item);
-      const matched = item.terms.filter(term => getNoteText().includes(term.toLocaleLowerCase())).join(", ");
+      const matched = item.terms.filter(term => phraseMatches(getNoteText(), term)).join(", ");
       return `
         <label class="flex items-start gap-2 rounded-lg border p-2 bg-white text-xs">
           <input type="checkbox" data-note-rubric="${item.id}" ${checked ? "checked" : ""} class="mt-0.5 accent-teal-700">
