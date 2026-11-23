@@ -104,8 +104,10 @@
     let sessionCases = []; // Patient data remains in memory only until secure cloud storage is ready.
     let currentStep = 1;
     let selectedRubricsList = [];
-    let selectedPlan = { tokens: 25, price: 199, planId: "tokens_25" };
     let latestTop5Remedies = [];
+    let basicSubscriptionActive = false;
+    let subscriptionCheckPending = false;
+    let basicSubscriptionCheckoutEnabled = false;
 
     // ==================== SECURE LOGIN GATE ====================
     function handleLoginSubmit(e) {
@@ -314,11 +316,19 @@
       const fu = document.getElementById("rxFollowup");
       if (fu && !fu.value) fu.value = d.toISOString().split('T')[0];
 
-      goToStep(1);
+      if (demoMode) {
+        basicSubscriptionActive = true;
+        goToStep(1);
+      } else {
+        void enforceBasicSubscriptionAccess();
+      }
     }
 
     async function logoutApp() {
       currentDoctor = null;
+      basicSubscriptionActive = false;
+      subscriptionCheckPending = false;
+      basicSubscriptionCheckoutEnabled = false;
       demoMode = false;
       sessionCases = [];
       if (supabaseClient) {
@@ -389,6 +399,10 @@
 
     // ==================== NAVIGATION & WORKSPACE ====================
     function goToStep(step) {
+      if (currentDoctor && !demoMode && !basicSubscriptionActive) {
+        openRechargeModal();
+        return;
+      }
       currentStep = step;
       for (let i = 1; i <= 8; i++) {
         const view = document.getElementById(`stepView${i}`);
@@ -1052,7 +1066,7 @@
       window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
     }
 
-    // Razorpay token recharge. Prices and token quantities are enforced by the server.
+    // ClassicAI Basic Subscription — all prices and entitlements are enforced server-side.
     function showRechargeStatus(message, isError = true) {
       const status = document.getElementById("rechargeStatus");
       if (!status) return;
@@ -1066,111 +1080,143 @@
       status.classList.toggle("text-emerald-900", !isError);
     }
 
-    const TOKEN_PURCHASES_ENABLED = false;
+    function setSubscriptionDismissible(canDismiss) {
+      for (const id of ["subscriptionCloseX", "subscriptionCloseFooter"]) {
+        const control = document.getElementById(id);
+        if (control) control.classList.toggle("hidden", !canDismiss);
+      }
+    }
+
+    async function refreshBasicSubscriptionStatus(showGate = false) {
+      if (demoMode) {
+        basicSubscriptionActive = true;
+        subscriptionCheckPending = false;
+        return { active: true, demo: true };
+      }
+      if (!currentDoctor || !supabaseClient) {
+        basicSubscriptionActive = false;
+        if (showGate) openRechargeModal();
+        return { active: false };
+      }
+      if (showGate) {
+        subscriptionCheckPending = true;
+        document.getElementById("rechargeModal")?.classList.remove("hidden");
+        setSubscriptionDismissible(false);
+        showRechargeStatus("Checking your ClassicAI subscription securely…", true);
+      }
+      try {
+        const { data, error } = await supabaseClient.functions.invoke("get-basic-subscription-status", { body: {} });
+        if (error || !data) throw new Error(data?.error || "Subscription status could not be verified.");
+        basicSubscriptionActive = data.active === true;
+        basicSubscriptionCheckoutEnabled = data.checkoutEnabled === true;
+        if (Number.isSafeInteger(Number(data.balance))) {
+          currentDoctor.ai_tokens = Number(data.balance);
+          setText("headerTokenCount", currentDoctor.ai_tokens);
+          setText("walletModalTokens", currentDoctor.ai_tokens);
+        }
+        setSubscriptionDismissible(basicSubscriptionActive);
+        const button = document.getElementById("payRazorpayButton");
+        if (button) {
+          button.disabled = !basicSubscriptionCheckoutEnabled;
+          button.innerText = basicSubscriptionCheckoutEnabled
+            ? (basicSubscriptionActive ? "Renew for ₹2,999" : "Subscribe for ₹2,999")
+            : "Secure checkout not enabled yet";
+        }
+        if (basicSubscriptionActive) {
+          const expiry = data.expiresAt ? new Date(data.expiresAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "not available";
+          showRechargeStatus("Your ClassicAI Basic subscription is active until " + expiry + ". Current repertorisation balance: " + currentDoctor.ai_tokens + " credits.", false);
+          if (showGate) {
+            document.getElementById("rechargeModal")?.classList.add("hidden");
+            goToStep(1);
+          }
+        } else {
+          showRechargeStatus(
+            basicSubscriptionCheckoutEnabled
+              ? "An active Basic subscription is required. Subscribe for ₹2,999; 50 credits are added after payment is verified."
+              : "An active Basic subscription is required. Secure checkout is not enabled yet; no payment can be taken. Please contact the administrator.",
+            true
+          );
+          if (showGate) document.getElementById("rechargeModal")?.classList.remove("hidden");
+        }
+        return data;
+      } catch (error) {
+        basicSubscriptionActive = false;
+        setSubscriptionDismissible(false);
+        const button = document.getElementById("payRazorpayButton");
+        if (button) { button.disabled = true; button.innerText = "Subscription status unavailable"; }
+        showRechargeStatus(error?.message || "Could not verify your subscription. Please retry or contact support.", true);
+        if (showGate) document.getElementById("rechargeModal")?.classList.remove("hidden");
+        return { active: false, error: error?.message };
+      } finally {
+        subscriptionCheckPending = false;
+      }
+    }
+
+    async function enforceBasicSubscriptionAccess() {
+      await refreshBasicSubscriptionStatus(true);
+    }
 
     function openRechargeModal() {
       const modal = document.getElementById("rechargeModal");
-      const button = document.getElementById("payRazorpayButton");
       if (!modal) return;
-
       modal.classList.remove("hidden");
-      if (!TOKEN_PURCHASES_ENABLED) {
-        if (button) {
-          button.disabled = true;
-          button.innerText = "Purchases temporarily paused";
-        }
-        showRechargeStatus(
-          "ClassicAI Basic is ₹2,999 for 12 months and includes 50 Repertorisation Credits. Secure subscription checkout and server-side access verification are not active yet. No payment will be taken and no credits will be added.",
-          true
-        );
+      if (demoMode) {
+        setSubscriptionDismissible(true);
+        showRechargeStatus("Safe Demo mode is active. No real subscription or payment is used.", false);
         return;
       }
-
-      if (demoMode || !currentDoctor || !supabaseClient) {
-        if (button) button.disabled = true;
-        showRechargeStatus("Sign in with an approved doctor account to purchase tokens.", true);
+      if (!currentDoctor || !supabaseClient) {
+        setSubscriptionDismissible(false);
+        showRechargeStatus("Sign in with an approved doctor account to check subscription access.", true);
         return;
       }
-
-      const status = document.getElementById("rechargeStatus");
-      if (status) status.classList.add("hidden");
-      if (button) {
-        button.disabled = false;
-        button.innerText = "Pay ₹" + (selectedPlan?.price || 199) + " securely";
-      }
+      void refreshBasicSubscriptionStatus(false);
     }
 
     function closeRechargeModal() {
+      if (!demoMode && !basicSubscriptionActive) return;
       document.getElementById("rechargeModal")?.classList.add("hidden");
     }
 
-    function selectPlan(planId = "tokens_25") {
-      const plans = {
-        tokens_25: { tokens: 25, price: 199 },
-        tokens_50: { tokens: 50, price: 349 },
-        tokens_100: { tokens: 100, price: 599 }
-      };
-      const plan = plans[planId];
-      if (!plan) return;
-      selectedPlan = { ...plan, planId };
-      for (const [id, key] of [["planCard25", "tokens_25"], ["planCard50", "tokens_50"], ["planCard100", "tokens_100"]]) {
-        const card = document.getElementById(id);
-        if (!card) continue;
-        const active = key === planId;
-        card.setAttribute("aria-pressed", String(active));
-        card.classList.toggle("border-teal-600", active);
-        card.classList.toggle("bg-teal-50", active);
-        card.classList.toggle("border-slate-200", !active);
-        card.classList.toggle("bg-white", !active);
-      }
-      const button = document.getElementById("payRazorpayButton");
-      if (button) {
-        button.innerText = TOKEN_PURCHASES_ENABLED ? "Pay ₹" + plan.price + " securely" : "Purchases temporarily paused";
-        button.disabled = !TOKEN_PURCHASES_ENABLED;
-      }
-    }
-
     async function payViaRazorpay() {
-      if (!TOKEN_PURCHASES_ENABLED) {
-        showRechargeStatus("Token recharge is temporarily disabled until a billable server-side AI service is integrated and tested.");
+      if (demoMode || !currentDoctor || !supabaseClient) {
+        showRechargeStatus("Please sign in with an active doctor account before subscribing.", true);
         return;
       }
-      if (demoMode || !currentDoctor || !supabaseClient) {
-        showRechargeStatus("Please sign in with an active doctor account before purchasing tokens.");
+      if (!basicSubscriptionCheckoutEnabled) {
+        showRechargeStatus("Secure subscription checkout is not enabled yet. No payment has been taken.", true);
         return;
       }
       if (!window.Razorpay) {
-        showRechargeStatus("Razorpay Checkout could not load. Check your internet connection and retry.");
+        showRechargeStatus("Razorpay Checkout could not load. Check your internet connection and retry.", true);
         return;
       }
-
       const button = document.getElementById("payRazorpayButton");
-      if (button) { button.disabled = true; button.innerText = "Preparing secure payment…"; }
+      if (button) { button.disabled = true; button.innerText = "Preparing secure subscription…"; }
       try {
-        selectPlan(selectedPlan.planId || "tokens_25");
-        const { data: order, error } = await supabaseClient.functions.invoke("razorpay-create-order", {
-          body: { planId: selectedPlan.planId }
-        });
-        if (error || !order?.orderId || !order?.keyId) {
-          throw new Error(order?.error || "Payment setup is not ready yet. Please try again later.");
+        const { data: order, error } = await supabaseClient.functions.invoke("create-basic-subscription-order", { body: {} });
+        if (error || !order?.orderId || !order?.keyId || order.amount !== 299900) {
+          throw new Error(order?.error || "Subscription order could not be prepared.");
         }
-
         const checkout = new window.Razorpay({
           key: order.keyId,
           amount: order.amount,
           currency: order.currency,
           name: order.name || "ClassicAI",
-          description: order.description || "Token recharge",
+          description: order.description || "Basic Subscription — 12 months",
           order_id: order.orderId,
           prefill: order.prefill || {},
           theme: { color: "#0f766e" },
           modal: { ondismiss: () => {
-            if (button) { button.disabled = false; button.innerText = "Pay ₹" + selectedPlan.price + " securely"; }
+            if (button) {
+              button.disabled = !basicSubscriptionCheckoutEnabled;
+              button.innerText = basicSubscriptionActive ? "Renew for ₹2,999" : "Subscribe for ₹2,999";
+            }
           } },
           handler: async function (response) {
-            showRechargeStatus("Payment submitted. Verifying with Razorpay…", false);
+            showRechargeStatus("Payment submitted. Verifying captured payment with Razorpay…", false);
             try {
-              const { data: verified, error: verifyError } = await supabaseClient.functions.invoke("razorpay-verify-payment", {
+              const { data: verified, error: verifyError } = await supabaseClient.functions.invoke("verify-basic-subscription-payment", {
                 body: {
                   razorpay_order_id: response.razorpay_order_id,
                   razorpay_payment_id: response.razorpay_payment_id,
@@ -1178,36 +1224,36 @@
                 }
               });
               if (verifyError || !verified?.success) {
-                showRechargeStatus("We could not confirm token credit yet. Do not pay again immediately. Keep payment ID " +
-                  (response.razorpay_payment_id || "") + " and contact support if your balance does not update.");
-                return;
+                throw new Error(verified?.error || "Payment verification is pending. Do not pay again; retain payment ID " + (response.razorpay_payment_id || ""));
               }
-
-              currentDoctor.ai_tokens = verified.balance;
-              const headerBalance = document.getElementById("headerTokenCount");
-              const walletBalance = document.getElementById("walletModalTokens");
-              if (headerBalance) headerBalance.innerText = String(verified.balance);
-              if (walletBalance) walletBalance.innerText = String(verified.balance);
-              showRechargeStatus("Payment verified. " + verified.tokensAdded + " tokens added. New balance: " + verified.balance + ".", false);
-              if (button) { button.disabled = false; button.innerText = "Pay ₹" + selectedPlan.price + " securely"; }
-              window.setTimeout(() => closeRechargeModal(), 1800);
-            } catch (_) {
-              showRechargeStatus("Payment was submitted but verification could not finish. Keep payment ID " +
-                (response.razorpay_payment_id || "") + " and contact support before retrying.");
-            } finally {
-              if (button) { button.disabled = false; button.innerText = "Pay ₹" + selectedPlan.price + " securely"; }
+              if (Number.isSafeInteger(Number(verified.balance))) {
+                currentDoctor.ai_tokens = Number(verified.balance);
+                setText("headerTokenCount", currentDoctor.ai_tokens);
+                setText("walletModalTokens", currentDoctor.ai_tokens);
+              }
+              await refreshBasicSubscriptionStatus(false);
+              if (!basicSubscriptionActive) throw new Error("Payment verified, but entitlement refresh is pending. Contact support with payment ID " + response.razorpay_payment_id);
+              showRechargeStatus("Subscription activated. 50 credits added. Your subscription is active for 12 months.", false);
+              if (button) { button.disabled = false; button.innerText = "Renew for ₹2,999"; }
+              window.setTimeout(() => {
+                document.getElementById("rechargeModal")?.classList.add("hidden");
+                goToStep(1);
+              }, 1400);
+            } catch (error) {
+              showRechargeStatus((error?.message || "Payment verification is pending.") + " Payment ID: " + (response.razorpay_payment_id || "not available"), true);
+              if (button) { button.disabled = !basicSubscriptionCheckoutEnabled; button.innerText = "Retry verification / Subscribe"; }
             }
           }
         });
         checkout.on("payment.failed", function (response) {
           const description = response?.error?.description || "Payment did not complete.";
-          showRechargeStatus(description + " If money was deducted, check your Razorpay receipt before trying again.");
-          if (button) { button.disabled = false; button.innerText = "Pay ₹" + selectedPlan.price + " securely"; }
+          showRechargeStatus(description + " If money was deducted, do not pay again immediately; contact support with the payment reference.", true);
+          if (button) { button.disabled = !basicSubscriptionCheckoutEnabled; button.innerText = basicSubscriptionActive ? "Renew for ₹2,999" : "Subscribe for ₹2,999"; }
         });
         checkout.open();
       } catch (error) {
-        showRechargeStatus(error?.message || "Could not start payment. Please try again later.");
-        if (button) { button.disabled = false; button.innerText = "Pay ₹" + selectedPlan.price + " securely"; }
+        showRechargeStatus(error?.message || "Could not start subscription checkout.", true);
+        if (button) { button.disabled = !basicSubscriptionCheckoutEnabled; button.innerText = basicSubscriptionActive ? "Renew for ₹2,999" : "Subscribe for ₹2,999"; }
       }
     }
 
