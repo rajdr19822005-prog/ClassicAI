@@ -512,8 +512,12 @@
         alert("सुरक्षित डॉक्टर लॉगिन उपलब्ध होने तक यह क्रिया बंद है।");
         return;
       }
-      // This repertorization currently runs locally in the browser; it does not call a paid AI API.
-      // Never consume credits for a local calculation or before a successful, billable server response.
+      // Repertorization is calculated locally, then charged exactly once by the trusted backend.
+      // Keep the request ID across retries so a lost response cannot cause a duplicate deduction.
+      if (demoMode || !supabaseClient) {
+        alert("Tokenized repertorization requires an authenticated active doctor account.");
+        return;
+      }
       if (window.__classicaiRepertorizationRunning) return;
       window.__classicaiRepertorizationRunning = true;
       const actionButton = document.querySelector('[onclick="executeAIRepertorization()"]');
@@ -658,8 +662,35 @@
         container.appendChild(card);
       });
 
-      // This is a local heuristic repertorization, not a paid server-side AI call.
-      // Never deduct purchased tokens for a local-only calculation.
+      // The local calculation is complete. Charge one token server-side before exposing
+      // the completed result. The backend derives doctor identity from the verified JWT.
+      const requestStorageKey = "classicai_repertorization_request_" + String(currentDoctor.id);
+      let requestId = "";
+      try {
+        requestId = sessionStorage.getItem(requestStorageKey) || "";
+      } catch (_) {}
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
+        requestId = window.__classicaiPendingRepertorizationRequestId || "";
+      }
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
+        requestId = crypto.randomUUID();
+      }
+      window.__classicaiPendingRepertorizationRequestId = requestId;
+      try { sessionStorage.setItem(requestStorageKey, requestId); } catch (_) {}
+
+      const { data: tokenResult, error: tokenError } = await supabaseClient.functions.invoke("consume-repertorization-token", {
+        body: { request_id: requestId }
+      });
+      if (tokenError || !tokenResult?.success || !Number.isSafeInteger(Number(tokenResult.balance))) {
+        throw new Error(tokenResult?.error || tokenError?.message || "Token deduction could not be confirmed. Your result has not been marked complete; retry safely.");
+      }
+
+      currentDoctor.ai_tokens = Number(tokenResult.balance);
+      setText("headerTokenCount", currentDoctor.ai_tokens);
+      setText("walletModalTokens", currentDoctor.ai_tokens);
+      window.__classicaiPendingRepertorizationRequestId = "";
+      try { sessionStorage.removeItem(requestStorageKey); } catch (_) {}
+
       document.getElementById("repertorySheetContainer").classList.remove("hidden");
       } catch (error) {
         console.error("ClassicAI repertorization failed:", error);
