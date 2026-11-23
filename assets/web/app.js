@@ -331,6 +331,7 @@
       basicSubscriptionCheckoutEnabled = false;
       demoMode = false;
       sessionCases = [];
+      document.getElementById("rechargeModal")?.classList.add("hidden");
       if (supabaseClient) {
         try { await supabaseClient.auth.signOut(); } catch (_) {}
       }
@@ -702,6 +703,10 @@
         body: { request_id: requestId }
       });
       if (tokenError || !tokenResult?.success || !Number.isSafeInteger(Number(tokenResult.balance))) {
+        if (tokenResult?.code === "SUBSCRIPTION_REQUIRED") {
+          basicSubscriptionActive = false;
+          openRechargeModal();
+        }
         let tokenFailureMessage = tokenResult?.error || tokenError?.message;
         try {
           const response = tokenError?.context;
