@@ -682,7 +682,15 @@
         body: { request_id: requestId }
       });
       if (tokenError || !tokenResult?.success || !Number.isSafeInteger(Number(tokenResult.balance))) {
-        throw new Error(tokenResult?.error || tokenError?.message || "Token deduction could not be confirmed. Your result has not been marked complete; retry safely.");
+        let tokenFailureMessage = tokenResult?.error || tokenError?.message;
+        try {
+          const response = tokenError?.context;
+          if (response && typeof response.clone === "function") {
+            const failureBody = await response.clone().json();
+            tokenFailureMessage = failureBody?.error || tokenFailureMessage;
+          }
+        } catch (_) {}
+        throw new Error(tokenFailureMessage || "Token deduction could not be confirmed. Your result has not been marked complete; retry safely.");
       }
 
       currentDoctor.ai_tokens = Number(tokenResult.balance);
