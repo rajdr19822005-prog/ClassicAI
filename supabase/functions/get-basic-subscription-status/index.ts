@@ -9,6 +9,7 @@ const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? (() => {
 })();
 const keyId = Deno.env.get("RAZORPAY_KEY_ID") ?? "";
 const keySecret = Deno.env.get("RAZORPAY_KEY_SECRET") ?? "";
+const webhookSecret = Deno.env.get("RAZORPAY_WEBHOOK_SECRET") ?? "";
 const paymentsEnabled = Deno.env.get("BASIC_SUBSCRIPTION_PAYMENTS_ENABLED") === "true";
 const allowedOrigins = new Set(["https://classicai.vercel.app", "null", "http://localhost", "http://127.0.0.1"]);
 const isAllowedOrigin = (origin: string | null) => !origin || allowedOrigins.has(origin) ||
@@ -70,7 +71,7 @@ Deno.serve(async (req: Request) => {
       startsAt: subscription?.starts_at ?? null, expiresAt: subscription?.expires_at ?? null,
       balance: Number(doctor.ai_tokens ?? 0), pricePaise: 299900,
       creditsIncluded: 50, validityMonths: 12,
-      checkoutEnabled: paymentsEnabled && Boolean(keyId && keySecret)
+      checkoutEnabled: paymentsEnabled && Boolean(keyId && keySecret && webhookSecret)
     }, origin);
   } catch (error) {
     console.error("get-basic-subscription-status failed", error);
