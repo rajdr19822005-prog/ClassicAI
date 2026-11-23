@@ -58,11 +58,15 @@ Deno.serve(async (req: Request) => {
       .select("plan_id, status, starts_at, expires_at")
       .eq("doctor_id", doctor.id).eq("auth_user_id", user.id).maybeSingle();
     if (error) throw error;
+    const { data: config, error: configError } = await admin.from("basic_subscription_config")
+      .select("enforcement_enabled").eq("id", 1).maybeSingle();
+    if (configError) throw configError;
     const active = Boolean(subscription && subscription.status === "active" &&
       new Date(subscription.starts_at).getTime() <= Date.now() &&
       new Date(subscription.expires_at).getTime() > Date.now());
     return json(200, {
-      active, planId: subscription?.plan_id ?? null,
+      active, enforcementEnabled: config?.enforcement_enabled === true,
+      planId: subscription?.plan_id ?? null,
       startsAt: subscription?.starts_at ?? null, expiresAt: subscription?.expires_at ?? null,
       balance: Number(doctor.ai_tokens ?? 0), pricePaise: 299900,
       creditsIncluded: 50, validityMonths: 12,
