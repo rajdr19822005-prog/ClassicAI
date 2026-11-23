@@ -9,6 +9,7 @@ const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? (() => {
 })();
 const keyId = Deno.env.get("RAZORPAY_KEY_ID") ?? "";
 const keySecret = Deno.env.get("RAZORPAY_KEY_SECRET") ?? "";
+const webhookSecret = Deno.env.get("RAZORPAY_WEBHOOK_SECRET") ?? "";
 const paymentsEnabled = Deno.env.get("BASIC_SUBSCRIPTION_PAYMENTS_ENABLED") === "true";
 const allowedOrigins = new Set(["https://classicai.vercel.app", "null", "http://localhost", "http://127.0.0.1"]);
 const isAllowedOrigin = (origin: string | null) => !origin || allowedOrigins.has(origin) ||
@@ -46,7 +47,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors(origin) });
   if (req.method !== "POST") return json(405, { error: "Method not allowed" }, origin);
   if (!isAllowedOrigin(origin)) return json(403, { error: "Origin not allowed" }, origin);
-  if (!supabaseUrl || !anonKey || !serviceKey || !keyId || !keySecret) return json(503, { error: "Subscription payment service is not configured." }, origin);
+  if (!supabaseUrl || !anonKey || !serviceKey || !keyId || !keySecret || !webhookSecret) return json(503, { error: "Subscription payment service and webhook are not configured." }, origin);
   if (!paymentsEnabled) return json(503, { error: "Secure subscription checkout is not enabled yet. Please contact ClassicAI support." }, origin);
   const user = await authenticatedUser(req);
   if (!user) return json(401, { error: "Please sign in again." }, origin);
