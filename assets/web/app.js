@@ -1107,7 +1107,11 @@
       try {
         const { data, error } = await supabaseClient.functions.invoke("get-basic-subscription-status", { body: {} });
         if (error || !data) throw new Error(data?.error || "Subscription status could not be verified.");
-        basicSubscriptionActive = data.active === true;
+        const subscriptionIsActive = data.active === true;
+        const enforcementEnabled = data.enforcementEnabled === true;
+        // Keep current doctors working during the staged rollout. The server-side
+        // switch becomes authoritative only after checkout and webhook tests pass.
+        basicSubscriptionActive = !enforcementEnabled || subscriptionIsActive;
         basicSubscriptionCheckoutEnabled = data.checkoutEnabled === true;
         if (Number.isSafeInteger(Number(data.balance))) {
           currentDoctor.ai_tokens = Number(data.balance);
@@ -1123,8 +1127,12 @@
             : "Secure checkout not enabled yet";
         }
         if (basicSubscriptionActive) {
-          const expiry = data.expiresAt ? new Date(data.expiresAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "not available";
-          showRechargeStatus("Your ClassicAI Basic subscription is active until " + expiry + ". Current repertorisation balance: " + currentDoctor.ai_tokens + " credits.", false);
+          if (!enforcementEnabled && !subscriptionIsActive) {
+            showRechargeStatus("ClassicAI Basic is ₹2,999 for 12 months with 50 credits. Subscription enforcement is staged and existing access is continuing until secure checkout and payment testing are completed.", false);
+          } else {
+            const expiry = data.expiresAt ? new Date(data.expiresAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "not available";
+            showRechargeStatus("Your ClassicAI Basic subscription is active until " + expiry + ". Current repertorisation balance: " + currentDoctor.ai_tokens + " credits.", false);
+          }
           if (showGate) {
             document.getElementById("rechargeModal")?.classList.add("hidden");
             goToStep(1);
