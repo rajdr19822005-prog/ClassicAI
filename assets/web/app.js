@@ -542,6 +542,12 @@
           otherSymptomsFullText += " " + field.value.trim().toLowerCase();
         }
       }
+      // Doctor-approved note-derived rubric search terms join the existing local
+      // keyword matcher. Unapproved suggestions never affect the repertorization.
+      const approvedNoteRubricTerms = typeof window.getClassicAIApprovedNoteTerms === "function"
+        ? window.getClassicAIApprovedNoteTerms()
+        : [];
+      otherSymptomsFullText += " " + approvedNoteRubricTerms.join(" ").toLowerCase();
 
       const missingQuestions = [];
       if (!selectedRubricsList.some(r => r.startsWith("GNM:"))) {
