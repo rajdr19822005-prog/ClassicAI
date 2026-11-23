@@ -332,7 +332,52 @@
     }
 
     async function refreshDoctorBalance() {
-      alert("क्लाउड बैलेंस सिंक सुरक्षित सर्वर API और डॉक्टर प्रमाणीकरण तैयार होने तक बंद है।");
+      if (demoMode || !currentDoctor || !supabaseClient) {
+        alert("लाइव टोकन बैलेंस देखने के लिए सक्रिय डॉक्टर खाते से लॉगिन करें।");
+        return;
+      }
+
+      const button = document.querySelector('button[onclick="refreshDoctorBalance()"]');
+      const icon = document.getElementById("syncBalIcon");
+      const originalTitle = button?.title || "Sync Live Tokens";
+      if (button) {
+        button.disabled = true;
+        button.title = "Refreshing live token balance…";
+      }
+      if (icon) icon.classList.add("fa-spin");
+
+      try {
+        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+        if (sessionError || !session?.user) {
+          throw new Error("Your doctor session has expired. Please sign in again.");
+        }
+
+        // The doctors_select_own_profile RLS policy limits this read to the
+        // authenticated doctor's own active profile. No privileged key is used.
+        const { data: doctor, error } = await supabaseClient
+          .from("doctors")
+          .select("id, ai_tokens, status")
+          .eq("auth_user_id", session.user.id)
+          .eq("status", "Active")
+          .maybeSingle();
+
+        if (error || !doctor || doctor.id !== currentDoctor.id) {
+          throw new Error("Could not verify your active doctor profile. Please sign in again or contact the administrator.");
+        }
+
+        currentDoctor.ai_tokens = Number(doctor.ai_tokens ?? 0);
+        setText("headerTokenCount", currentDoctor.ai_tokens);
+        setText("walletModalTokens", currentDoctor.ai_tokens);
+        if (button) button.title = "Live token balance updated";
+      } catch (error) {
+        alert(error?.message || "Could not refresh the token balance. Please try again.");
+      } finally {
+        if (icon) icon.classList.remove("fa-spin");
+        if (button) {
+          button.disabled = false;
+          if (button.title !== "Live token balance updated") button.title = originalTitle;
+        }
+      }
     }
 
     // Escape user-controlled text before inserting it into HTML templates.
