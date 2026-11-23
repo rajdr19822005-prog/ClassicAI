@@ -3,6 +3,24 @@
   "use strict";
   let premiumTab = "overview";
   let premiumData = { patients: [], medicines: [], invoices: [], followups: [] };
+  let premiumDemoSeeded = false;
+  const isPremiumDemo = () => typeof demoMode !== "undefined" && demoMode === true;
+  function seedPremiumDemoData() {
+    if (premiumDemoSeeded) return;
+    const now = new Date();
+    const today = now.toISOString();
+    const patientId = "demo-patient-001";
+    premiumData = {
+      patients: [{ id:patientId, full_name:"Aarav Sharma (Sample)", phone:"9000000001", age:34, gender:"Male", notes:"Fictional demo record only.", created_at:today }],
+      medicines: [
+        { id:"demo-medicine-001", medicine_name:"Demo Globules", potency:"30C", dosage_form:"Globules", batch_number:"DEMO-001", expiry_date:new Date(now.getFullYear()+1,now.getMonth(),1).toISOString().slice(0,10), stock_qty:8, reorder_level:10, unit_price:45 },
+        { id:"demo-medicine-002", medicine_name:"Demo Mother Tincture", potency:"Q", dosage_form:"Mother Tincture", batch_number:"DEMO-002", expiry_date:new Date(now.getFullYear()+2,now.getMonth(),1).toISOString().slice(0,10), stock_qty:24, reorder_level:5, unit_price:120 }
+      ],
+      invoices: [{ id:"demo-invoice-001", invoice_no:"CA-DEMO-001", patient_id:patientId, patient_name:"Aarav Sharma (Sample)", line_items:[{description:"Consultation (sample)",quantity:1,rate:500,amount:500}], subtotal:500, discount:0, total:500, payment_status:"unpaid", created_at:today, notes:"Fictional demo invoice." }],
+      followups: [{ id:"demo-followup-001", patient_id:patientId, clinic_patients:{full_name:"Aarav Sharma (Sample)",phone:"9000000001"}, due_at:new Date(now.getTime()+86400000).toISOString(), message:"This is a sample reminder. Do not send to a real patient.", status:"pending", channel:"whatsapp" }]
+    };
+    premiumDemoSeeded = true;
+  }
   const $ = (id) => document.getElementById(id);
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, c => ({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
@@ -11,7 +29,11 @@
   const dateLabel = (value) => value ? new Date(value).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : "—";
 
   async function verifyPremiumAccess() {
-    if (typeof demoMode !== "undefined" && demoMode) throw new Error("Premium cloud modules demo mode में उपलब्ध नहीं हैं।");
+    if (isPremiumDemo()) {
+      if (!currentDoctor) throw new Error("Safe Demo session is not active.");
+      seedPremiumDemoData();
+      return "demo-local";
+    }
     if (!currentDoctor || !supabaseClient) throw new Error("पहले approved doctor account से sign in करें।");
     const { data, error } = await supabaseClient.functions.invoke("get-basic-subscription-status", { body: {} });
     if (error || !data || data.active !== true) throw new Error("Active Basic subscription verify नहीं हो सकी। कृपया दोबारा login करें।");
@@ -28,10 +50,11 @@
         <div class="flex justify-between items-start gap-3">
           <div><p class="text-[10px] uppercase tracking-widest text-amber-300 font-black">ClassicAI Premium Suite</p>
           <h2 class="text-xl font-black mt-1">Clinic Workspace</h2>
-          <p class="text-xs text-slate-300 mt-1">Private clinic data · doctor-only access</p></div>
+          <p class="text-xs text-slate-300 mt-1">${isPremiumDemo() ? "SAFE DEMO · fictional data only · memory-only" : "Private clinic data · doctor-only access"}</p></div>
           <button type="button" onclick="closePremiumModules()" class="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold">Back</button>
         </div>
       </div>
+      ${isPremiumDemo() ? '<div class="rounded-xl border border-amber-300 bg-amber-50 text-amber-950 p-3 text-xs mb-3"><b>Safe Demo mode:</b> Test patient, inventory, billing and follow-up workflows with fictional sample data. Changes stay in this browser session only; nothing is uploaded, saved to Supabase, billed, or sent to WhatsApp/SMS.</div>' : ""}
       <div class="grid grid-cols-3 gap-1.5 mb-3">
         <button onclick="switchPremiumTab('overview')" class="pm-tab" data-tab="overview">Overview</button>
         <button onclick="switchPremiumTab('patients')" class="pm-tab" data-tab="patients">Patients</button>
@@ -61,6 +84,10 @@
   }
 
   async function loadData() {
+    if (isPremiumDemo()) {
+      seedPremiumDemoData();
+      return;
+    }
     const doctorId = currentDoctor.id;
     const [patients, medicines, invoices, followups] = await Promise.all([
       supabaseClient.from("clinic_patients").select("*").eq("doctor_id", doctorId).order("created_at", { ascending:false }).limit(250),
@@ -190,6 +217,11 @@
       try {
         const uid = await verifyPremiumAccess(), f = new FormData(event.currentTarget);
         const payload = { doctor_id:currentDoctor.id, auth_user_id:uid, full_name:String(f.get("full_name")).trim(), phone:String(f.get("phone") || "").trim() || null, age:f.get("age") ? Number(f.get("age")) : null, gender:String(f.get("gender") || "") || null, notes:String(f.get("notes") || "").trim() || null };
+        if (isPremiumDemo()) {
+          premiumData.patients.unshift({ ...payload, id:"demo-" + crypto.randomUUID(), created_at:new Date().toISOString() });
+          await reloadAndRender("Demo patient added locally. No cloud data was changed.");
+          return;
+        }
         const { error } = await supabaseClient.from("clinic_patients").insert(payload);
         if (error) throw error;
         await reloadAndRender("Patient record saved securely.");
@@ -201,6 +233,11 @@
         const uid = await verifyPremiumAccess(), f = new FormData(event.currentTarget);
         const payload = { doctor_id:currentDoctor.id, auth_user_id:uid, medicine_name:String(f.get("medicine_name")).trim(), potency:String(f.get("potency") || "").trim(), dosage_form:String(f.get("dosage_form") || "Other"), batch_number:String(f.get("batch_number") || "").trim() || null, expiry_date:String(f.get("expiry_date") || "") || null, stock_qty:Number(f.get("stock_qty") || 0), reorder_level:Number(f.get("reorder_level") || 0), unit_price:Number(f.get("unit_price") || 0) };
         if (![payload.stock_qty,payload.reorder_level,payload.unit_price].every(Number.isFinite)) throw new Error("Enter valid stock and price values.");
+        if (isPremiumDemo()) {
+          premiumData.medicines.unshift({ ...payload, id:"demo-" + crypto.randomUUID() });
+          await reloadAndRender("Demo inventory item added locally. No cloud data was changed.");
+          return;
+        }
         const { error } = await supabaseClient.from("clinic_medicines").insert(payload);
         if (error) throw error;
         await reloadAndRender("Inventory item saved.");
@@ -221,6 +258,11 @@
         const description = String(f.get("description") || "").trim();
         if (!description) throw new Error("Enter an invoice description.");
         const payload = { doctor_id:currentDoctor.id, auth_user_id:uid, patient_id:patientId, patient_name:patientName, invoice_no:invoiceNo, line_items:[{description,quantity:qty,rate,amount:subtotal}], subtotal, discount, total, payment_status:String(f.get("payment_status") || "unpaid"), notes:String(f.get("notes") || "").trim() || null };
+        if (isPremiumDemo()) {
+          premiumData.invoices.unshift({ ...payload, id:"demo-" + crypto.randomUUID(), created_at:new Date().toISOString() });
+          await reloadAndRender("Demo invoice created locally. You can test PDF export; no cloud record or payment was created.");
+          return;
+        }
         const { error } = await supabaseClient.from("clinic_invoices").insert(payload);
         if (error) throw error;
         await reloadAndRender("Invoice created. Select Download PDF to print or save it.");
@@ -233,6 +275,12 @@
         const due = new Date(String(f.get("due_at")));
         if (Number.isNaN(due.getTime())) throw new Error("Enter a valid follow-up date and time.");
         const payload = { doctor_id:currentDoctor.id, auth_user_id:uid, patient_id:String(f.get("patient_id")), due_at:due.toISOString(), message:String(f.get("message")).trim(), channel:"whatsapp" };
+        if (isPremiumDemo()) {
+          const patient = premiumData.patients.find(p => p.id === payload.patient_id);
+          premiumData.followups.unshift({ ...payload, id:"demo-" + crypto.randomUUID(), status:"pending", clinic_patients:patient ? {full_name:patient.full_name,phone:patient.phone} : {} });
+          await reloadAndRender("Demo follow-up saved locally. No reminder was sent.");
+          return;
+        }
         const { error } = await supabaseClient.from("clinic_followups").insert(payload);
         if (error) throw error;
         await reloadAndRender("Follow-up saved.");
@@ -278,6 +326,12 @@
       if (value === null) return;
       const quantity = Number(value);
       if (!Number.isFinite(quantity) || quantity < 0) throw new Error("Stock must be a non-negative number.");
+      if (isPremiumDemo()) {
+        item.stock_qty = quantity;
+        render();
+        status("Demo stock quantity updated locally.");
+        return;
+      }
       const { error } = await supabaseClient.from("clinic_medicines").update({stock_qty:quantity,updated_at:new Date().toISOString()}).eq("id",id).eq("doctor_id",currentDoctor.id);
       if (error) throw error;
       await reloadAndRender("Stock quantity updated.");
@@ -287,6 +341,14 @@
   window.markPremiumInvoicePaid = async function(id) {
     try {
       await verifyPremiumAccess();
+      if (isPremiumDemo()) {
+        const invoice = premiumData.invoices.find(x => x.id === id);
+        if (!invoice) throw new Error("Invoice not found.");
+        invoice.payment_status = "paid";
+        render();
+        status("Demo invoice marked paid locally. No payment was processed.");
+        return;
+      }
       const { error } = await supabaseClient.from("clinic_invoices").update({payment_status:"paid",updated_at:new Date().toISOString()}).eq("id",id).eq("doctor_id",currentDoctor.id);
       if (error) throw error;
       await reloadAndRender("Invoice marked as paid.");
@@ -296,6 +358,14 @@
   window.completePremiumFollowup = async function(id) {
     try {
       await verifyPremiumAccess();
+      if (isPremiumDemo()) {
+        const followup = premiumData.followups.find(x => x.id === id);
+        if (!followup) throw new Error("Follow-up not found.");
+        followup.status = "completed";
+        render();
+        status("Demo follow-up marked complete locally. No message was sent.");
+        return;
+      }
       const { error } = await supabaseClient.from("clinic_followups").update({status:"completed",updated_at:new Date().toISOString()}).eq("id",id).eq("doctor_id",currentDoctor.id);
       if (error) throw error;
       await reloadAndRender("Follow-up marked complete.");
@@ -307,6 +377,10 @@
       await verifyPremiumAccess();
       const f = premiumData.followups.find(x => x.id === id);
       if (!f) throw new Error("Follow-up not found.");
+      if (isPremiumDemo()) {
+        status("Demo only: WhatsApp sending is disabled. This sample message has not been sent.");
+        return;
+      }
       const patient = f.clinic_patients || {};
       let phone = String(patient.phone || "").replace(/\D/g,"");
       if (phone.length === 10) phone = "91" + phone;
