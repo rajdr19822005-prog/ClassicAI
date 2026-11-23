@@ -131,10 +131,10 @@
       <form id="pmInvoiceForm" class="bg-white border rounded-xl p-3 space-y-2">
         <h3 class="font-bold text-sm">Create invoice</h3>
         <select name="patient_id" class="w-full border rounded-lg p-2 text-sm"><option value="">Select patient (optional)</option>${options}</select>
-        <input name="patient_name" required maxlength="160" placeholder="Patient / customer name" class="w-full border rounded-lg p-2 text-sm">
+        <input name="patient_name" maxlength="160" placeholder="Customer name (or select patient)" class="w-full border rounded-lg p-2 text-sm">
         <input name="description" required maxlength="180" placeholder="Service / medicine description" class="w-full border rounded-lg p-2 text-sm">
         <div class="grid grid-cols-3 gap-2"><input name="qty" type="number" min="0.01" step="0.01" value="1" required placeholder="Qty" class="border rounded-lg p-2 text-sm"><input name="rate" type="number" min="0" step="0.01" required placeholder="Rate ₹" class="border rounded-lg p-2 text-sm"><input name="discount" type="number" min="0" step="0.01" value="0" placeholder="Discount ₹" class="border rounded-lg p-2 text-sm"></div>
-        <select name="payment_status" class="w-full border rounded-lg p-2 text-sm"><option value="unpaid">Unpaid</option><option value="paid">Paid</option><option value="partial">Partially paid</option></select>
+        <select name="payment_status" class="w-full border rounded-lg p-2 text-sm"><option value="unpaid">Unpaid</option><option value="paid">Paid</option></select>
         <textarea name="notes" maxlength="1000" rows="2" placeholder="Invoice notes" class="w-full border rounded-lg p-2 text-sm"></textarea>
         <button class="w-full bg-teal-800 text-white rounded-lg py-2.5 text-sm font-bold">Create invoice</button>
       </form>
@@ -218,7 +218,9 @@
         const patientName = String(f.get("patient_name") || "").trim() || selectedPatient?.full_name;
         if (!patientName) throw new Error("Enter a patient / customer name.");
         const invoiceNo = "CA-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + crypto.randomUUID().slice(0,6).toUpperCase();
-        const payload = { doctor_id:currentDoctor.id, auth_user_id:uid, patient_id:patientId, patient_name:patientName, invoice_no:invoiceNo, line_items:[{description:String(f.get("description")).trim(),quantity:qty,rate,amount:subtotal}], subtotal, discount, total, payment_status:String(f.get("payment_status") || "unpaid"), notes:String(f.get("notes") || "").trim() || null };
+        const description = String(f.get("description") || "").trim();
+        if (!description) throw new Error("Enter an invoice description.");
+        const payload = { doctor_id:currentDoctor.id, auth_user_id:uid, patient_id:patientId, patient_name:patientName, invoice_no:invoiceNo, line_items:[{description,quantity:qty,rate,amount:subtotal}], subtotal, discount, total, payment_status:String(f.get("payment_status") || "unpaid"), notes:String(f.get("notes") || "").trim() || null };
         const { error } = await supabaseClient.from("clinic_invoices").insert(payload);
         if (error) throw error;
         await reloadAndRender("Invoice created. Select Download PDF to print or save it.");
