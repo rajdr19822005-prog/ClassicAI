@@ -1080,7 +1080,7 @@
           button.innerText = "Purchases temporarily paused";
         }
         showRechargeStatus(
-          "Recharge packages are shown for reference. Payments are paused because current repertorization runs locally and is not yet a billable server-side service. No payment can be taken.",
+          "ClassicAI Basic is ₹2,999 for 12 months and includes 50 Repertorisation Credits. Secure subscription checkout and server-side access verification are not active yet. No payment will be taken and no credits will be added.",
           true
         );
         return;
