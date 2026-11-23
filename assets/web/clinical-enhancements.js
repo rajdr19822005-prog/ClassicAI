@@ -296,7 +296,7 @@
 
   function openGnmExplorer() {
     if (!explorerSection) return;
-    previousStep = Number.isInteger(window.currentStep) ? window.currentStep : 7;
+    // previousStep is maintained by the navigation wrapper whenever a normal step opens.
     document.querySelectorAll('main section[id^="stepView"]').forEach(section => section.classList.add("hidden"));
     explorerSection.classList.remove("hidden");
     document.getElementById("gnmExplorerButton")?.classList.add("chip-active");
@@ -316,6 +316,7 @@
     window.__classicaiOriginalGoToStep = window.goToStep;
     const original = window.goToStep;
     window.goToStep = function(step) {
+      previousStep = step;
       if (explorerSection) explorerSection.classList.add("hidden");
       document.getElementById("gnmExplorerButton")?.classList.remove("chip-active");
       return original(step);
@@ -327,7 +328,6 @@
     createNoteRubricPanel();
     createGnmExplorer();
     installNavigationWrapper();
-    getNoteFields().forEach(field => field.addEventListener("input", refreshNoteRubrics));
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initialize);
