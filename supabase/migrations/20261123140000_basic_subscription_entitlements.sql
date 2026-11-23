@@ -176,6 +176,19 @@ grant execute on function public.activate_basic_subscription(text,text,integer,t
 
 -- The token service is the authoritative entitlement gate. Existing completed request IDs
 -- remain idempotently readable, but new repertorization requires a currently active Basic plan.
+-- Roll out the paywall only after payment credentials and end-to-end checkout have been tested.
+create table if not exists public.basic_subscription_config (
+  id smallint primary key check (id = 1),
+  enforcement_enabled boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+insert into public.basic_subscription_config (id, enforcement_enabled)
+values (1, false)
+on conflict (id) do nothing;
+alter table public.basic_subscription_config enable row level security;
+revoke all on table public.basic_subscription_config from public, anon, authenticated;
+grant all on table public.basic_subscription_config to service_role;
+
 create or replace function public.consume_repertorization_token(p_request_id uuid)
 returns jsonb
 language plpgsql
@@ -220,7 +233,10 @@ begin
     );
   end if;
 
-  if not exists (
+  if exists (
+    select 1 from public.basic_subscription_config c
+    where c.id = 1 and c.enforcement_enabled = true
+  ) and not exists (
     select 1 from public.doctor_subscriptions s
     where s.doctor_id = v_doctor.id
       and s.auth_user_id = v_user_id
