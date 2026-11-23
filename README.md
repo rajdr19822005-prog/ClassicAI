@@ -62,3 +62,16 @@ Add repository Actions secrets under Settings → Secrets and variables → Acti
 Then choose Actions → Android CI → Run workflow. If the secrets are present, the signed job should upload an artifact named `classicai-release-aab`. Keep an offline backup of the upload keystore and passwords. Never commit them or send them in chat.
 
 No signed AAB has been generated and no Play Console upload has been performed.
+## ClassicAI Basic Subscription (staged rollout)
+
+- Basic plan: ₹2,999 for 12 months, including 50 repertorization credits.
+- Subscription orders are separate from legacy token-recharge orders. Captured payments are verified against Razorpay's API and signature before the database activates the plan and adds 50 credits. Duplicate callbacks and webhooks are idempotent.
+- Renewals extend from the current expiry when still active; otherwise a fresh 12-month period starts at verified payment time.
+- The migration creates RLS-protected subscription, order, credit-grant and rollout-configuration tables. Existing doctor balances and legacy payment/token history are not rewritten.
+- Subscription enforcement starts OFF (public.basic_subscription_config.enforcement_enabled = false) so current doctors are not locked out before checkout is configured and tested. Turn it ON only after test-mode checkout, captured-payment verification, webhook delivery, duplicate-event handling, expiry and credit-ledger checks pass.
+- New Edge Functions: create-basic-subscription-order, verify-basic-subscription-payment, get-basic-subscription-status, and razorpay-basic-subscription-webhook.
+- Configure a separate Razorpay payment.captured webhook to: https://hhnbayuaozzykbtvfvdk.supabase.co/functions/v1/razorpay-basic-subscription-webhook
+- Required Supabase Edge Function secret: BASIC_SUBSCRIPTION_PAYMENTS_ENABLED. Keep it unset or false until the new flow has been tested with Razorpay Test Mode. Set it to true only when Razorpay keys, Supabase server credentials and the webhook secret are configured.
+- After successful end-to-end verification, enable entitlement enforcement with: update public.basic_subscription_config set enforcement_enabled = true, updated_at = now() where id = 1;
+- Enabling the gate blocks new repertorization for accounts without an active Basic subscription. Existing token balances remain stored and are not deleted.
+- The current repertorisation engine is still a local heuristic ranking tool, not a generative AI model. Do not advertise it as a model-backed AI service until one is integrated and tested.
