@@ -121,7 +121,7 @@
         <button class="w-full bg-teal-800 text-white rounded-lg py-2.5 text-sm font-bold">Save inventory item</button>
       </form>
       <div class="bg-white border rounded-xl p-3"><h3 class="font-bold text-sm mb-2">Stock ledger</h3>
-        <div class="space-y-2">${premiumData.medicines.map(m => { const low = Number(m.stock_qty) <= Number(m.reorder_level); return `<div class="border-b last:border-0 pb-2 flex justify-between gap-2"><div><p class="font-bold text-sm">${esc(m.medicine_name)} ${esc(m.potency)}</p><p class="text-[11px] text-slate-500">${esc(m.dosage_form)} · Batch ${esc(m.batch_number || "—")} · Exp ${dateLabel(m.expiry_date)}</p></div><div class="text-right"><p class="font-black ${low ? "text-amber-700" : "text-slate-900"}">${esc(m.stock_qty)}</p><p class="text-[10px] text-slate-500">Qty · ${money(m.unit_price)}</p></div></div>`; }).join("") || '<p class="text-xs text-slate-500">No inventory items yet.</p>'}</div>
+        <div class="space-y-2">${premiumData.medicines.map(m => { const low = Number(m.stock_qty) <= Number(m.reorder_level); return `<div class="border-b last:border-0 pb-2 flex justify-between gap-2"><div><p class="font-bold text-sm">${esc(m.medicine_name)} ${esc(m.potency)}</p><p class="text-[11px] text-slate-500">${esc(m.dosage_form)} · Batch ${esc(m.batch_number || "—")} · Exp ${dateLabel(m.expiry_date)}</p></div><div class="text-right"><p class="font-black ${low ? "text-amber-700" : "text-slate-900"}">${esc(m.stock_qty)}</p><p class="text-[10px] text-slate-500">Qty · ${money(m.unit_price)}</p><button type="button" onclick="adjustPremiumStock('${esc(m.id)}')" class="text-[10px] text-teal-800 underline font-bold">Adjust stock</button></div></div>`; }).join("") || '<p class="text-xs text-slate-500">No inventory items yet.</p>'}</div>
       </div>`;
   }
 
@@ -139,7 +139,7 @@
         <button class="w-full bg-teal-800 text-white rounded-lg py-2.5 text-sm font-bold">Create invoice</button>
       </form>
       <div class="bg-white border rounded-xl p-3"><h3 class="font-bold text-sm mb-2">Invoices</h3>
-        <div class="space-y-2">${premiumData.invoices.map(i => `<div class="border-b last:border-0 pb-2 flex justify-between gap-2"><div><p class="font-bold text-sm">${esc(i.invoice_no)}</p><p class="text-[11px] text-slate-500">${esc(i.patient_name)} · ${dateLabel(i.created_at)} · ${esc(i.payment_status)}</p></div><div class="text-right"><p class="font-black">${money(i.total)}</p><button type="button" onclick="printPremiumInvoice('${esc(i.id)}')" class="text-[11px] text-teal-800 underline font-bold">Download PDF</button></div></div>`).join("") || '<p class="text-xs text-slate-500">No invoices created yet.</p>'}</div>
+        <div class="space-y-2">${premiumData.invoices.map(i => `<div class="border-b last:border-0 pb-2 flex justify-between gap-2"><div><p class="font-bold text-sm">${esc(i.invoice_no)}</p><p class="text-[11px] text-slate-500">${esc(i.patient_name)} · ${dateLabel(i.created_at)} · ${esc(i.payment_status)}</p></div><div class="text-right"><p class="font-black">${money(i.total)}</p><button type="button" onclick="printPremiumInvoice('${esc(i.id)}')" class="text-[11px] text-teal-800 underline font-bold">Download PDF</button>${i.payment_status !== "paid" && i.payment_status !== "void" ? `<button type="button" onclick="markPremiumInvoicePaid('${esc(i.id)}')" class="block text-[11px] text-emerald-700 underline font-bold">Mark paid</button>` : ""}</div></div>`).join("") || '<p class="text-xs text-slate-500">No invoices created yet.</p>'}</div>
       </div>
       <div id="premiumInvoicePrint" class="hidden"></div>`;
   }
@@ -265,6 +265,30 @@
     $("premiumModulesRoot")?.classList.add("hidden");
     $("bottomNavBar")?.classList.remove("hidden");
     if (typeof goToStep === "function") goToStep(currentStep || 1);
+  };
+
+  window.adjustPremiumStock = async function(id) {
+    try {
+      await verifyPremiumAccess();
+      const item = premiumData.medicines.find(x => x.id === id);
+      if (!item) throw new Error("Inventory item not found.");
+      const value = window.prompt("Enter the new physical stock quantity:", String(item.stock_qty));
+      if (value === null) return;
+      const quantity = Number(value);
+      if (!Number.isFinite(quantity) || quantity < 0) throw new Error("Stock must be a non-negative number.");
+      const { error } = await supabaseClient.from("clinic_medicines").update({stock_qty:quantity,updated_at:new Date().toISOString()}).eq("id",id).eq("doctor_id",currentDoctor.id);
+      if (error) throw error;
+      await reloadAndRender("Stock quantity updated.");
+    } catch (error) { status(error.message || "Stock update failed.", true); }
+  };
+
+  window.markPremiumInvoicePaid = async function(id) {
+    try {
+      await verifyPremiumAccess();
+      const { error } = await supabaseClient.from("clinic_invoices").update({payment_status:"paid",updated_at:new Date().toISOString()}).eq("id",id).eq("doctor_id",currentDoctor.id);
+      if (error) throw error;
+      await reloadAndRender("Invoice marked as paid.");
+    } catch (error) { status(error.message || "Invoice update failed.", true); }
   };
 
   window.completePremiumFollowup = async function(id) {
