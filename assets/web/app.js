@@ -94,7 +94,7 @@
 
     // Expand the candidate pool with the full 175-entry medicine catalogue.
     // Catalogue-only entries are retained for completeness but are never given invented symptom grades.
-    const remedyNameKey = (name) => String(name || "").toLowerCase().replace(/\\([^)]*\\)/g, "").replace(/[^a-z0-9]+/g, " ").trim().replace(/\\s+/g, " ");
+    const remedyNameKey = (name) => String(name || "").toLowerCase().replace(/\([^)]*\)/g, "").replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
     const detailedRemedyKeys = new Set(materiaMedicaRepo.map(m => remedyNameKey(m.name)));
     const remedyAliases = { "lachesis mutus":"lachesis muta", "actaea racemosa":"cimicifuga", "china officinalis":"cinchona" };
     (Array.isArray(window.CLASSICAI_REPERTORY_CATALOG) ? window.CLASSICAI_REPERTORY_CATALOG : []).forEach((name) => {
