@@ -42,9 +42,9 @@ $;
 
 drop trigger if exists doctors_initialize_trial on public.doctors;
 create trigger doctors_initialize_trial
-before insert or update of auth_user_id on public.doctors
+before insert or update of auth_user_id, status on public.doctors
 for each row
-when (new.auth_user_id is not null)
+when (new.auth_user_id is not null and new.status = 'Active')
 execute function private.initialize_doctor_trial();
 
 -- One authoritative server-side predicate for all Basic app features.
