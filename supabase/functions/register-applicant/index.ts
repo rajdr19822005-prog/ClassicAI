@@ -49,7 +49,7 @@ Deno.serve(async (req: Request) => {
       return reply(400, { error: "College, course and Student ID / Roll number are required for student applications." }, origin);
     }
 
-    const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } }, origin);
+    const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const { data: existing, error: existingError } = await admin.from("doctors")
       .select("id,status,applicant_type,registration_type")
       .eq("auth_user_id", user.id).maybeSingle();
