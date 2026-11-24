@@ -36,13 +36,13 @@
 
     <!-- LOGIN MODAL: ZERO HANG, AUTO-AUTH DEFAULT -->
     <div id="authModal" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md flex items-center justify-center z-50 p-4">
-      <div class="bg-white rounded-2xl shadow-2xl max-w-xs w-full overflow-hidden border-t-4 border-teal-600">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full max-h-[92vh] overflow-y-auto overflow-hidden border-t-4 border-teal-600">
         <div class="bg-teal-800 text-white p-4 text-center">
           <div class="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-2 text-xl">
             <i class="fa-solid fa-brain"></i>
           </div>
           <h2 class="text-base font-bold">ClassicalAI_ver_3.0</h2>
-          <p class="text-[10px] text-teal-200">Doctor Authentication Portal</p>
+          <p class="text-[10px] text-teal-200">Doctor & Medical Student Portal</p>
         </div>
 
         <form id="loginForm" onsubmit="handleLoginSubmit(event)" class="p-5 space-y-3.5">
@@ -60,6 +60,17 @@
           </button>
           <button type="button" id="forgotDoctorPassword" class="w-full text-teal-800 underline text-xs font-bold py-1">Forgot password / Set password</button>
           <p class="text-[10px] leading-relaxed text-slate-500">Doctor login requires an invited Supabase Auth account linked to an active doctor record. Cloud case saving and payments remain disabled until separately secured and tested.</p>
+        </form>
+        <div class="px-5 pb-4"><button type="button" id="showApplicantRegistration" class="w-full border border-teal-700 text-teal-800 rounded-xl py-2.5 text-xs font-bold">New Doctor / Medical Student Registration</button></div>
+        <form id="applicantRegistrationForm" class="hidden px-5 pb-5 space-y-2.5" novalidate>
+          <h3 class="font-bold text-sm text-teal-900">New applicant registration</h3><p class="text-[10px] text-slate-500">All applications are reviewed by ClassicAI Admin. Access starts only after approval.</p>
+          <label class="block text-[11px] font-bold text-slate-600">Applicant type</label><select id="applicantType" class="w-full border rounded-lg px-3 py-2 text-xs"><option value="doctor">Doctor</option><option value="student">Medical Student (BHMS / Homeopathy preferred)</option></select>
+          <label class="block text-[11px] font-bold text-slate-600">Full name *</label><input id="applicantFullName" required maxlength="120" class="w-full border rounded-lg px-3 py-2 text-xs" autocomplete="name">
+          <div id="doctorRegistrationFields" class="space-y-2"><label class="block text-[11px] font-bold text-slate-600">Registration type *</label><select id="doctorRegistrationType" class="w-full border rounded-lg px-3 py-2 text-xs"><option value="permanent">Permanent Registration</option><option value="provisional">Temporary / Provisional Registration</option></select><label class="block text-[11px] font-bold text-slate-600">Registration / Council number *</label><input id="doctorRegNo" maxlength="80" class="w-full border rounded-lg px-3 py-2 text-xs" placeholder="Council registration number"></div>
+          <div id="studentRegistrationFields" class="hidden space-y-2"><label class="block text-[11px] font-bold text-slate-600">College / University *</label><input id="studentCollege" maxlength="180" class="w-full border rounded-lg px-3 py-2 text-xs" placeholder="College name"><label class="block text-[11px] font-bold text-slate-600">Course *</label><input id="studentCourse" maxlength="100" value="BHMS" class="w-full border rounded-lg px-3 py-2 text-xs" placeholder="BHMS / other medical course"><label class="block text-[11px] font-bold text-slate-600">Current year</label><select id="studentYear" class="w-full border rounded-lg px-3 py-2 text-xs"><option value="">Select year</option><option value="1">1st Year</option><option value="2">2nd Year</option><option value="3">3rd Year</option><option value="4">4th Year</option><option value="internship">Internship</option><option value="other">Other</option></select><label class="block text-[11px] font-bold text-slate-600">Student ID / Roll number *</label><input id="studentId" maxlength="100" class="w-full border rounded-lg px-3 py-2 text-xs"></div>
+          <label class="block text-[11px] font-bold text-slate-600">Clinic / Department (optional)</label><input id="applicantClinic" maxlength="160" class="w-full border rounded-lg px-3 py-2 text-xs"><label class="block text-[11px] font-bold text-slate-600">Mobile / WhatsApp</label><input id="applicantPhone" type="tel" maxlength="30" class="w-full border rounded-lg px-3 py-2 text-xs" placeholder="+91…">
+          <label class="block text-[11px] font-bold text-slate-600">Email *</label><input id="applicantEmail" type="email" required autocomplete="email" class="w-full border rounded-lg px-3 py-2 text-xs" placeholder="name@example.com"><label class="block text-[11px] font-bold text-slate-600">Password (minimum 10 characters) *</label><input id="applicantPassword" type="password" required minlength="10" autocomplete="new-password" class="w-full border rounded-lg px-3 py-2 text-xs">
+          <p id="applicantRegistrationStatus" class="hidden rounded-lg bg-amber-50 border border-amber-200 p-2 text-[11px]" role="status"></p><button type="submit" id="applicantRegisterButton" class="w-full bg-teal-700 text-white rounded-xl py-3 text-xs font-bold">Submit Registration</button><button type="button" id="cancelApplicantRegistration" class="w-full bg-slate-100 text-slate-700 rounded-xl py-2 text-xs">Back to Login</button>
         </form>
         <section id="passwordSetupPanel" class="hidden p-5 pt-0 space-y-3" aria-live="polite">
           <h3 class="font-bold text-teal-900 text-sm">Set your doctor password</h3>
