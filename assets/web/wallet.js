@@ -71,6 +71,7 @@
       rates=results[2].data||[];
       message="Wallet balance loaded. SMS and WhatsApp usage is charged from this wallet at provider cost + 30% service margin; no messaging subscription is required.";
     } catch(e) {
+      walletCheckoutEnabled=false;
       message=e.message||"Billing schema is not available in this preview.";
     }
     const rateHtml=rates.length?rates.map(r=>'<div class="flex justify-between border-b last:border-0 py-2 text-xs"><b>'+esc(r.provider.toUpperCase())+'</b><span>'+(r.enabled?rupees(Math.ceil(Number(r.provider_cost_paise)*1.3))+" incl. 30% margin":"Rate not configured")+'</span></div>').join(""):'<p class="text-xs text-slate-500">Admin-configured SMS and WhatsApp provider rates will appear here.</p>';
