@@ -25,6 +25,10 @@
     content.innerHTML='<div class="rounded-xl bg-white border p-4 text-sm">Loading wallet…</div>';
     let balance=0, ledger=[], rates=[], message="Preview only: wallet payment and provider sending are not enabled.";
     try {
+      if (typeof demoMode!=="undefined" && demoMode===true) {
+        content.innerHTML='<div class="rounded-xl bg-white border p-4"><p class="text-xs text-slate-500">Safe Demo · preview only</p><p class="text-3xl font-black text-teal-800 mt-1">₹0.00</p><p class="text-xs text-slate-500 mt-2">Wallet top-up and message delivery are disabled in Safe Demo. No real patient message or payment is processed.</p></div><div class="rounded-xl bg-white border p-4"><h3 class="font-bold text-sm">Recharge options</h3><div class="grid grid-cols-2 gap-2 mt-2"><button disabled>₹500</button><button disabled>₹1,000</button><button disabled>₹2,000</button><button disabled>₹5,000</button></div></div><div class="rounded-xl bg-white border p-4"><b>Service margin</b><p class="text-xs mt-1">Provider cost + 30% ClassicAI service margin.</p></div>';
+        return;
+      }
       if (typeof supabaseClient==="undefined" || !supabaseClient) throw new Error("Doctor sign-in required.");
       const {data:userData,error:userError}=await supabaseClient.auth.getUser();
       if(userError||!userData?.user) throw new Error("Doctor sign-in required.");
