@@ -48,6 +48,7 @@
   $("panel").querySelectorAll("button").forEach(b=>{b.disabled=true;b.style.opacity=".55";});
   return;
  }
-\n (async()=>{try{const url=window.CLASSICAI_SUPABASE_URL,key=window.CLASSICAI_SUPABASE_PUBLISHABLE_KEY;if(!url||!key||!window.supabase?.createClient)throw new Error("Supabase site configuration unavailable.");client=window.supabase.createClient(url,key);endpoint=url+"/functions/v1/admin-module-billing";const {data:{session}}=await client.auth.getSession();if(!session)throw new Error("Sign in to the main Admin app first, then open Billing Administration.");const {data,error}=await client.auth.getUser();if(error||data.user?.app_metadata?.role!=="admin")throw new Error("Administrator role required.");await load();$("panel").classList.remove("hidden");$("status").textContent="Authenticated as administrator. Billing configuration loaded.";}catch(e){$("status").textContent=e.message;}})();
+
+ (async()=>{try{const url=window.CLASSICAI_SUPABASE_URL,key=window.CLASSICAI_SUPABASE_PUBLISHABLE_KEY;if(!url||!key||!window.supabase?.createClient)throw new Error("Supabase site configuration unavailable.");client=window.supabase.createClient(url,key);endpoint=url+"/functions/v1/admin-module-billing";const {data:{session}}=await client.auth.getSession();if(!session)throw new Error("Sign in to the main Admin app first, then open Billing Administration.");const {data,error}=await client.auth.getUser();if(error||data.user?.app_metadata?.role!=="admin")throw new Error("Administrator role required.");await load();$("panel").classList.remove("hidden");$("status").textContent="Authenticated as administrator. Billing configuration loaded.";}catch(e){$("status").textContent=e.message;}})();
 })();
 </script></main></body></html>
