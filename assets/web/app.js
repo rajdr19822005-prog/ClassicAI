@@ -92,6 +92,28 @@
       }
     ];
 
+    // Expand the candidate pool with the full 175-entry medicine catalogue.
+    // Catalogue-only entries are retained for completeness but are never given invented symptom grades.
+    const remedyNameKey = (name) => String(name || "").toLowerCase().replace(/\\([^)]*\\)/g, "").replace(/[^a-z0-9]+/g, " ").trim().replace(/\\s+/g, " ");
+    const detailedRemedyKeys = new Set(materiaMedicaRepo.map(m => remedyNameKey(m.name)));
+    const remedyAliases = { "lachesis mutus":"lachesis muta", "actaea racemosa":"cimicifuga", "china officinalis":"cinchona" };
+    (Array.isArray(window.CLASSICAI_REPERTORY_CATALOG) ? window.CLASSICAI_REPERTORY_CATALOG : []).forEach((name) => {
+      const key = remedyAliases[remedyNameKey(name)] || remedyNameKey(name);
+      if (!key || detailedRemedyKeys.has(key)) return;
+      detailedRemedyKeys.add(key);
+      materiaMedicaRepo.push({
+        name,
+        thermal: "Not indexed",
+        miasm: "Not indexed",
+        vesAffinity: "Not indexed in loaded public-domain profile data",
+        gnmMatches: [],
+        keywords: [],
+        keySymptoms: [],
+        shortNote: "Catalogue entry only. No verified symptom-to-remedy rubric mapping is loaded for this remedy.",
+        catalogOnly: true,
+        dataSource: "ClassicAI 175-remedy catalogue index; see public-domain references in repertory-catalog.js"
+      });
+    });
 
     // Safely update optional UI elements so missing hidden/modal elements cannot crash the app.
     function setText(id, value) {
