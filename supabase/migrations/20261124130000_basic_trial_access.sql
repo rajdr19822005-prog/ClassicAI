@@ -20,19 +20,26 @@ set search_path = ''
 as $$
 begin
   if new.trial_started_at is null then
-    new.trial_started_at := coalesce(new.created_at, now());
+    if tg_op = 'UPDATE' then
+      -- A legacy doctor record linked to an Auth account is considered provisioned now.
+      new.trial_started_at := now();
+    else
+      new.trial_started_at := coalesce(new.created_at, now());
+    end if;
   end if;
   if new.trial_expires_at is null then
     new.trial_expires_at := new.trial_started_at + interval '15 days';
   end if;
   return new;
 end;
-$$;
+$;
 
 drop trigger if exists doctors_initialize_trial on public.doctors;
 create trigger doctors_initialize_trial
-before insert on public.doctors
-for each row execute function private.initialize_doctor_trial();
+before insert or update of auth_user_id on public.doctors
+for each row
+when (new.auth_user_id is not null)
+execute function private.initialize_doctor_trial();
 
 -- One authoritative server-side predicate for all Basic app features.
 create or replace function private.current_basic_access_doctor_id()
