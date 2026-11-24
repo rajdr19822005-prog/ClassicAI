@@ -42,8 +42,8 @@ Deno.serve(async (req: Request) => {
     });
     if (error) {
       const message = String(error.message ?? "");
-      if (message.includes("active ClassicAI Basic subscription is required")) {
-        return json(402, { success: false, code: "SUBSCRIPTION_REQUIRED", error: "An active ClassicAI Basic subscription is required to repertorize. Subscribe for ₹2,999 for 12 months; 50 credits are included." });
+      if (message.includes("ClassicAI Basic trial or subscription") || message.includes("active ClassicAI Basic subscription is required")) {
+        return json(402, { success: false, code: "SUBSCRIPTION_REQUIRED", error: "Your 15-day free trial may have ended. An active ClassicAI Basic subscription is required to repertorize: ₹2,999 for 12 months, including 50 credits after verified payment." });
       }
       if (message.includes("Insufficient tokens")) {
         return json(402, { success: false, code: "INSUFFICIENT_TOKENS", error: "Insufficient tokens. Please contact the administrator to recharge your account." });
