@@ -30,6 +30,14 @@
   const money = (value) => "₹" + Number(value || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const dateLabel = (value) => value ? new Date(value).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : "—";
 
+  async function verifyIntegrationAccess() {
+    if (isPremiumDemo()) throw new Error("Safe Demo cannot save real API credentials.");
+    if (!currentDoctor || !supabaseClient) throw new Error("Please sign in with an approved doctor account.");
+    const { data, error } = await supabaseClient.auth.getUser();
+    if (error || !data?.user) throw new Error("Doctor session expired. Please sign in again.");
+    return data.user.id;
+  }
+
   async function verifyPremiumAccess() {
     if (isPremiumDemo()) {
       if (!currentDoctor) throw new Error("Safe Demo session is not active.");
@@ -85,8 +93,15 @@
     });
   }
 
+  async function loadIntegrationStatuses() {
+    const { data, error } = await supabaseClient.rpc("get_doctor_integration_status");
+    if (error) throw error;
+    integrationStatuses = Object.fromEntries((data || []).map(item => [item.provider, item]));
+  }
+
   async function loadData() {
     if (isPremiumDemo()) {
+      integrationStatuses = {};
       seedPremiumDemoData();
       return;
     }
@@ -101,9 +116,7 @@
       if (result.error) throw new Error(result.error.message || ("Could not load " + name));
     }
     premiumData = { patients:patients.data || [], medicines:medicines.data || [], invoices:invoices.data || [], followups:followups.data || [] };
-    const { data: integrationRows, error: integrationError } = await supabaseClient.rpc("get_doctor_integration_status");
-    if (integrationError) throw integrationError;
-    integrationStatuses = Object.fromEntries((integrationRows || []).map(item => [item.provider, item]));
+    await loadIntegrationStatuses();
   }
 
   function overviewView() {
@@ -227,7 +240,7 @@
         event.preventDefault();
         try {
           if (isPremiumDemo()) throw new Error("Safe Demo cannot save real API credentials. Sign in to an approved doctor account.");
-          await verifyPremiumAccess();
+          await verifyIntegrationAccess();
           const values = new FormData(event.currentTarget);
           const { data, error } = await supabaseClient.functions.invoke("save-doctor-integration", {
             body: { provider, config:configBuilder(values), secret:JSON.stringify(secretBuilder(values)) }
@@ -350,6 +363,22 @@
     }
   };
 
+  window.openIntegrationSettings = async function() {
+    try {
+      await verifyIntegrationAccess();
+      const root = $("premiumModulesRoot");
+      if (!root) throw new Error("Integration settings panel is unavailable.");
+      root.classList.remove("hidden");
+      for (let i=1;i<=8;i++) $("stepView"+i)?.classList.add("hidden");
+      $("bottomNavBar")?.classList.add("hidden");
+      root.innerHTML = '<div class="bg-slate-900 text-white rounded-2xl p-4 shadow-lg mb-3"><div class="flex justify-between items-center gap-3"><div><p class="text-[10px] uppercase tracking-widest text-amber-300 font-black">ClassicAI · Settings</p><h2 class="text-xl font-black mt-1">API Integrations</h2><p class="text-xs text-slate-300 mt-1">Configure AI, SMS and WhatsApp providers</p></div><button type="button" onclick="closePremiumModules()" class="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold">Back</button></div></div><div id="premiumModuleStatus" class="hidden rounded-xl border p-3 text-xs mb-3" role="status"></div><div id="premiumModulePanel" class="space-y-3"></div>';
+      await loadIntegrationStatuses();
+      premiumTab = "integrations";
+      render();
+      window.scrollTo({top:0,behavior:"smooth"});
+    } catch (error) { alert(error.message || "Could not open integration settings."); }
+  };
+
   window.closePremiumModules = function() {
     $("premiumModulesRoot")?.classList.add("hidden");
     $("bottomNavBar")?.classList.remove("hidden");
@@ -450,6 +479,6 @@
     const host = $("premiumModulesRoot");
     if (!host) return;
     host.classList.add("hidden");
-    $("stepBtn8")?.parentElement?.insertAdjacentHTML("beforeend", '<button type="button" onclick="openPremiumModules()" class="px-2.5 py-1 rounded bg-amber-400 text-slate-950 font-black shadow">Premium Suite</button>');
+    $("stepBtn8")?.parentElement?.insertAdjacentHTML("beforeend", '<button type="button" onclick="openIntegrationSettings()" class="px-2.5 py-1 rounded bg-violet-700 text-white font-black shadow">API Integrations</button><button type="button" onclick="openPremiumModules()" class="px-2.5 py-1 rounded bg-amber-400 text-slate-950 font-black shadow">Premium Suite</button>');
   });
 })();
