@@ -24,7 +24,7 @@ Deno.serve(async (req: Request) => {
   const authorization = req.headers.get("Authorization") ?? "";
   if (!authorization.startsWith("Bearer ")) return reply(401, { error: "Email verification and sign-in are required before submitting an application." }, origin);
   try {
-    const auth = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } }, origin);
+    const auth = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const { data: { user }, error: authError } = await auth.auth.getUser(authorization.slice(7));
     if (authError || !user || !user.email) return reply(401, { error: "A valid signed-in account is required." }, origin);
     if (!user.email_confirmed_at && !user.confirmed_at) return reply(403, { error: "Please verify your email before submitting the application." }, origin);
@@ -92,4 +92,4 @@ Deno.serve(async (req: Request) => {
     console.error("register-applicant failed", error);
     return reply(500, { error: "Application could not be submitted. Please retry after signing in." }, origin);
   }
-}, origin);
+});
