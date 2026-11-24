@@ -100,7 +100,6 @@
     }
 
     let currentDoctor = null;
-    let demoMode = false;
     let sessionCases = []; // Cache of the authenticated doctor's cloud archive for the active session.
     let currentStep = 1;
     let selectedRubricsList = [];
@@ -205,23 +204,6 @@
       }
     }
 
-    function enterDemoMode() {
-      demoMode = true;
-      currentDoctor = {
-        doctor_name: "Demo Physician",
-        clinic_name: "ClassicalAI — Safe Demo",
-        reg_no: "DEMO-LOCAL",
-        ai_tokens: 1000,
-        status: "Demo"
-      };
-      sessionCases = [];
-      const banner = document.getElementById("demoBanner");
-      if (banner) banner.classList.remove("hidden");
-      const auth = document.getElementById("authModal");
-      if (auth) auth.classList.add("hidden");
-      launchApp();
-    }
-
     async function loginAsDoctor() {
       const err = document.getElementById("docAuthError");
       const btn = document.getElementById("loginBtn");
@@ -254,9 +236,7 @@
           throw new Error("यह Auth खाता किसी Active स्वीकृत डॉक्टर रिकॉर्ड से लिंक नहीं है। ADMIN से लिंक ठीक करवाएँ।");
         }
         currentDoctor = doctor;
-        demoMode = false;
         sessionCases = [];
-        document.getElementById("demoBanner")?.classList.add("hidden");
         document.getElementById("authModal")?.classList.add("hidden");
         launchApp();
       } catch (e) {
@@ -284,7 +264,6 @@
           return;
         }
         currentDoctor = doctor;
-        demoMode = false;
         sessionCases = [];
         document.getElementById("authModal")?.classList.add("hidden");
         launchApp();
@@ -316,12 +295,7 @@
       const fu = document.getElementById("rxFollowup");
       if (fu && !fu.value) fu.value = d.toISOString().split('T')[0];
 
-      if (demoMode) {
-        basicSubscriptionActive = true;
-        goToStep(1);
-      } else {
-        void enforceBasicSubscriptionAccess();
-      }
+      void enforceBasicSubscriptionAccess();
     }
 
     async function logoutApp() {
@@ -329,21 +303,18 @@
       basicSubscriptionActive = false;
       subscriptionCheckPending = false;
       basicSubscriptionCheckoutEnabled = false;
-      demoMode = false;
       sessionCases = [];
       document.getElementById("rechargeModal")?.classList.add("hidden");
       if (supabaseClient) {
         try { await supabaseClient.auth.signOut(); } catch (_) {}
       }
       try { localStorage.removeItem("homoeo_current_doctor"); } catch(e) {}
-      const banner = document.getElementById("demoBanner");
-      if (banner) banner.classList.add("hidden");
       const auth = document.getElementById("authModal");
       if (auth) auth.classList.remove("hidden");
     }
 
     async function refreshDoctorBalance() {
-      if (demoMode || !currentDoctor || !supabaseClient) {
+      if (!currentDoctor || !supabaseClient) {
         alert("लाइव टोकन बैलेंस देखने के लिए सक्रिय डॉक्टर खाते से लॉगिन करें।");
         return;
       }
@@ -400,7 +371,7 @@
 
     // ==================== NAVIGATION & WORKSPACE ====================
     function goToStep(step) {
-      if (currentDoctor && !demoMode && !basicSubscriptionActive) {
+      if (currentDoctor && !basicSubscriptionActive) {
         openRechargeModal();
         return;
       }
@@ -529,7 +500,7 @@
       }
       // Repertorization is calculated locally, then charged exactly once by the trusted backend.
       // Keep the request ID across retries so a lost response cannot cause a duplicate deduction.
-      if (demoMode || !supabaseClient) {
+      if (!supabaseClient) {
         alert("Tokenized repertorization requires an authenticated active doctor account.");
         return;
       }
@@ -745,10 +716,6 @@
 
     // AUTOSAVE & CASE ARCHIVING
     async function saveCurrentCaseRecord() {
-      if (demoMode) {
-        alert("डेमो मोड में मरीज के केस सेव नहीं होते। कृपया केवल काल्पनिक डेटा इस्तेमाल करें।");
-        return false;
-      }
       if (!currentDoctor || !currentDoctor.reg_no) {
         alert("सुरक्षित डॉक्टर लॉगिन उपलब्ध होने तक मरीज का केस सेव नहीं किया जा सकता।");
         return false;
@@ -813,7 +780,7 @@
 
     async function finishCaseTaking() {
       const savedToSession = await saveCurrentCaseRecord();
-      if (!demoMode && !savedToSession) return;
+      if (!savedToSession) return;
       if (savedToSession) {
         alert("केस आपके डॉक्टर खाते में सुरक्षित रूप से क्लाउड पर सेव हो गया है।");
       }
@@ -860,7 +827,7 @@
       let cases = [];
       try {
         const { data: authData, error: authError } = await supabaseClient.auth.getUser();
-        if (authError || !authData?.user || demoMode) throw new Error("Authentication required");
+        if (authError || !authData?.user) throw new Error("Authentication required");
         const { data, error } = await supabaseClient.from("patient_cases").select("*").order("created_at", { ascending:false });
         if (error) throw error;
         sessionCases = (data || []).map(row => ({ ...row, id:Number(row.id), patient_age:row.patient_age || "--", patient_gender:row.patient_gender || "—", saved_at:row.created_at ? new Date(row.created_at).toLocaleString("hi-IN") : "" }));
@@ -1119,11 +1086,6 @@
     }
 
     async function refreshBasicSubscriptionStatus(showGate = false) {
-      if (demoMode) {
-        basicSubscriptionActive = true;
-        subscriptionCheckPending = false;
-        return { active: true, demo: true };
-      }
       if (!currentDoctor || !supabaseClient) {
         basicSubscriptionActive = false;
         if (showGate) openRechargeModal();
@@ -1139,10 +1101,7 @@
         const { data, error } = await supabaseClient.functions.invoke("get-basic-subscription-status", { body: {} });
         if (error || !data) throw new Error(data?.error || "Subscription status could not be verified.");
         const subscriptionIsActive = data.active === true;
-        const enforcementEnabled = data.enforcementEnabled === true;
-        // Keep current doctors working during the staged rollout. The server-side
-        // switch becomes authoritative only after checkout and webhook tests pass.
-        basicSubscriptionActive = !enforcementEnabled || subscriptionIsActive;
+        basicSubscriptionActive = subscriptionIsActive;
         basicSubscriptionCheckoutEnabled = data.checkoutEnabled === true;
         if (Number.isSafeInteger(Number(data.balance))) {
           currentDoctor.ai_tokens = Number(data.balance);
@@ -1154,12 +1113,13 @@
         if (button) {
           button.disabled = !basicSubscriptionCheckoutEnabled;
           button.innerText = basicSubscriptionCheckoutEnabled
-            ? (basicSubscriptionActive ? "Renew for ₹2,999" : "Subscribe for ₹2,999")
-            : "Secure checkout not enabled yet";
+            ? (data.trialActive ? "Subscribe for ₹2,999" : (basicSubscriptionActive ? "Renew for ₹2,999" : "Subscribe for ₹2,999"))
+            : (data.trialActive ? "15-day free trial active" : "Secure checkout not enabled yet");
         }
         if (basicSubscriptionActive) {
-          if (!enforcementEnabled && !subscriptionIsActive) {
-            showRechargeStatus("ClassicAI Basic is ₹2,999 for 12 months with 50 credits. Subscription enforcement is staged and existing access is continuing until secure checkout and payment testing are completed.", false);
+          if (data.trialActive === true) {
+            const expiry = data.trialExpiresAt ? new Date(data.trialExpiresAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "not available";
+            showRechargeStatus("Your 15-day ClassicAI Basic free trial is active until " + expiry + ". After the trial, Basic costs ₹2,999 for 12 months and includes 50 credits. Current balance: " + currentDoctor.ai_tokens + " credits.", false);
           } else {
             const expiry = data.expiresAt ? new Date(data.expiresAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "not available";
             showRechargeStatus("Your ClassicAI Basic subscription is active until " + expiry + ". Current repertorisation balance: " + currentDoctor.ai_tokens + " credits.", false);
@@ -1171,8 +1131,8 @@
         } else {
           showRechargeStatus(
             basicSubscriptionCheckoutEnabled
-              ? "An active Basic subscription is required. Subscribe for ₹2,999; 50 credits are added after payment is verified."
-              : "An active Basic subscription is required. Secure checkout is not enabled yet; no payment can be taken. Please contact the administrator.",
+              ? "Your 15-day free trial has ended. An active ClassicAI Basic subscription is required: ₹2,999 for 12 months, including 50 credits after verified payment."
+              : "Your 15-day free trial has ended. ClassicAI Basic (₹2,999 / 12 months) is required. Secure checkout is not enabled yet; please contact the administrator.",
             true
           );
           if (showGate) document.getElementById("rechargeModal")?.classList.remove("hidden");
@@ -1199,11 +1159,6 @@
       const modal = document.getElementById("rechargeModal");
       if (!modal) return;
       modal.classList.remove("hidden");
-      if (demoMode) {
-        setSubscriptionDismissible(true);
-        showRechargeStatus("Safe Demo mode is active. No real subscription or payment is used.", false);
-        return;
-      }
       if (!currentDoctor || !supabaseClient) {
         setSubscriptionDismissible(false);
         showRechargeStatus("Sign in with an approved doctor account to check subscription access.", true);
@@ -1213,12 +1168,12 @@
     }
 
     function closeRechargeModal() {
-      if (!demoMode && !basicSubscriptionActive) return;
+      if (!basicSubscriptionActive) return;
       document.getElementById("rechargeModal")?.classList.add("hidden");
     }
 
     async function payViaRazorpay() {
-      if (demoMode || !currentDoctor || !supabaseClient) {
+      if (!currentDoctor || !supabaseClient) {
         showRechargeStatus("Please sign in with an active doctor account before subscribing.", true);
         return;
       }
