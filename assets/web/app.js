@@ -191,13 +191,13 @@
       const hash = window.location.hash || "";
       const params = new URLSearchParams(hash.replace(/^#/, ""));
       const type = params.get("type");
-      if (type === "invite" || type === "recovery" || type === "signup") {
+      if (type === "invite" || type === "recovery") {
         showPasswordSetup(type === "invite" ? "Invitation accepted. Create your password to finish setup." : "Create a new password for your account.");
       }
       if (supabaseClient) {
         supabaseClient.auth.onAuthStateChange((event) => {
           const currentType = new URLSearchParams((window.location.hash || "").replace(/^#/, "")).get("type");
-          if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && (currentType === "invite" || currentType === "recovery" || currentType === "signup"))) {
+          if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && (currentType === "invite" || currentType === "recovery"))) {
             showPasswordSetup(currentType === "invite" ? "Invitation accepted. Create your password to finish setup." : "Create a new password for your account.");
           }
         });
@@ -257,10 +257,20 @@
     async function restoreAuthenticatedDoctor() {
       if (!supabaseClient) return;
       const authLinkType = new URLSearchParams((window.location.hash || "").replace(/^#/, "")).get("type");
-      if (authLinkType === "invite" || authLinkType === "recovery" || authLinkType === "signup") return;
+      if (authLinkType === "invite" || authLinkType === "recovery") return;
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session?.user) return;
+        if (session.user.user_metadata?.applicant_type) {
+          const { data: applicant, error: applicantError } = await supabaseClient.functions.invoke("register-applicant", { body: {} });
+          if (applicantError || !applicant?.registered) throw new Error(applicant?.error || applicantError?.message || "Registration profile could not be submitted.");
+          if (applicant.status !== "Active") {
+            await supabaseClient.auth.signOut();
+            const err = document.getElementById("docAuthError");
+            if (err) { err.innerText = "आपका आवेदन जमा है और Admin verification के लिए Pending है। Approval के बाद आप login कर सकेंगे।"; err.classList.remove("hidden"); }
+            return;
+          }
+        }
         const { data: doctor, error } = await supabaseClient
           .from("doctors")
           .select("id, doctor_name, clinic_name, reg_no, ai_tokens, status")
