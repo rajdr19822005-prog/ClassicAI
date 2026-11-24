@@ -323,3 +323,48 @@ revoke all on function private.activate_premium_module_order(uuid,text) from pub
 revoke all on function private.apply_wallet_topup_order(uuid,text) from public,anon,authenticated;
 grant execute on function private.activate_premium_module_order(uuid,text) to service_role;
 grant execute on function private.apply_wallet_topup_order(uuid,text) to service_role;
+
+-- PostgREST invokes public-schema RPCs by default. Keep private finalizers
+-- private and expose only narrow public wrappers executable by service_role.
+create or replace function public.apply_wallet_topup_order(
+  p_order_id uuid,
+  p_razorpay_payment_id text
+) returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$
+  select private.apply_wallet_topup_order(p_order_id,p_razorpay_payment_id);
+$$;
+
+create or replace function public.activate_premium_module_order(
+  p_order_id uuid,
+  p_razorpay_payment_id text
+) returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$
+  select private.activate_premium_module_order(p_order_id,p_razorpay_payment_id);
+$$;
+
+create or replace function public.charge_messaging_wallet(
+  p_auth_user_id uuid,
+  p_doctor_id bigint,
+  p_provider text,
+  p_idempotency_key uuid,
+  p_units integer default 1
+) returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$
+  select private.charge_messaging_wallet(p_auth_user_id,p_doctor_id,p_provider,p_idempotency_key,p_units);
+$$;
+
+revoke all on function public.apply_wallet_topup_order(uuid,text) from public,anon,authenticated;
+revoke all on function public.activate_premium_module_order(uuid,text) from public,anon,authenticated;
+revoke all on function public.charge_messaging_wallet(uuid,bigint,text,uuid,integer) from public,anon,authenticated;
+grant execute on function public.apply_wallet_topup_order(uuid,text) to service_role;
+grant execute on function public.activate_premium_module_order(uuid,text) to service_role;
+grant execute on function public.charge_messaging_wallet(uuid,bigint,text,uuid,integer) to service_role;
