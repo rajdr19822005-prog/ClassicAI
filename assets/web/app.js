@@ -225,6 +225,14 @@
       try {
         const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
         if (error || !data.user) throw new Error("ईमेल या पासवर्ड सही नहीं है।");
+        if (data.user.user_metadata?.applicant_type) {
+          const { data: applicant, error: applicantError } = await supabaseClient.functions.invoke("register-applicant", { body: {} });
+          if (applicantError) throw new Error(applicant?.error || "Registration could not be completed. Please contact ClassicAI Admin.");
+          if (applicant?.registered && applicant.status !== "Active") {
+            await supabaseClient.auth.signOut();
+            throw new Error("आपका आवेदन जमा है और Admin verification के लिए Pending है। Approval के बाद आप login कर सकेंगे।");
+          }
+        }
         const { data: doctor, error: profileError } = await supabaseClient
           .from("doctors")
           .select("id, doctor_name, clinic_name, reg_no, ai_tokens, status")
@@ -367,6 +375,91 @@
       return String(value ?? "").replace(/[&<>"\']/g, ch => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"' : "&quot;", "\'": "&#39;"
       })[ch]);
+    }
+
+    async function submitApplicantRegistration(event) {
+      event.preventDefault();
+      const status = document.getElementById("applicantRegistrationStatus");
+      const button = document.getElementById("applicantRegisterButton");
+      const show = (message, error = false) => {
+        if (!status) return;
+        status.textContent = message;
+        status.classList.remove("hidden");
+        status.classList.toggle("text-red-800", error);
+        status.classList.toggle("text-amber-900", !error);
+      };
+      if (!supabaseClient) { show("Secure registration is not configured.", true); return; }
+      const type = document.getElementById("applicantType")?.value || "doctor";
+      const name = document.getElementById("applicantFullName")?.value.trim() || "";
+      const email = document.getElementById("applicantEmail")?.value.trim().toLowerCase() || "";
+      const password = document.getElementById("applicantPassword")?.value || "";
+      const registrationType = document.getElementById("doctorRegistrationType")?.value || "permanent";
+      const regNo = document.getElementById("doctorRegNo")?.value.trim() || "";
+      const college = document.getElementById("studentCollege")?.value.trim() || "";
+      const course = document.getElementById("studentCourse")?.value.trim() || "";
+      const studentId = document.getElementById("studentId")?.value.trim() || "";
+      if (!name || name.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 10) {
+        show("Name, valid email and a password of at least 10 characters are required.", true); return;
+      }
+      if (type === "doctor" && (!regNo || regNo.length > 80)) { show("Doctor registration / council number is required.", true); return; }
+      if (type === "student" && (!college || !course || !studentId)) { show("College, course and Student ID / Roll number are required.", true); return; }
+      if (button) { button.disabled = true; button.textContent = "Submitting…"; }
+      try {
+        const metadata = {
+          applicant_type: type,
+          registration_type: type === "student" ? "student" : registrationType,
+          doctor_name: name,
+          reg_no: type === "doctor" ? regNo : "",
+          college_name: type === "student" ? college : "",
+          course_name: type === "student" ? course : "",
+          study_year: type === "student" ? (document.getElementById("studentYear")?.value || "") : "",
+          student_id: type === "student" ? studentId : "",
+          clinic_name: document.getElementById("applicantClinic")?.value.trim() || "",
+          whatsapp_no: document.getElementById("applicantPhone")?.value.trim() || ""
+        };
+        const { data, error } = await supabaseClient.auth.signUp({ email, password, options: { data: metadata, emailRedirectTo: "https://classicai.vercel.app" } });
+        if (error) throw error;
+        if (data.session) {
+          const { data: created, error: registrationError } = await supabaseClient.functions.invoke("register-applicant", { body: {} });
+          if (registrationError || !created?.registered) throw new Error(created?.error || registrationError?.message || "Account created; profile submission can be retried after email verification and sign-in.");
+          await supabaseClient.auth.signOut();
+          show("Registration submitted. Your application is Pending Admin verification. You can sign in after approval.");
+        } else {
+          show("Account created. Verify your email using the confirmation link, then sign in. Your application will be submitted securely after verification.");
+        }
+        document.getElementById("applicantRegistrationForm")?.reset();
+      } catch (error) {
+        show(error.message || "Registration failed. Please try again.", true);
+      } finally {
+        if (button) { button.disabled = false; button.textContent = "Submit Registration"; }
+      }
+    }
+
+    function configureApplicantRegistration() {
+      const form = document.getElementById("applicantRegistrationForm");
+      const loginForm = document.getElementById("loginForm");
+      const toggle = document.getElementById("showApplicantRegistration");
+      const type = document.getElementById("applicantType");
+      const doctorFields = document.getElementById("doctorRegistrationFields");
+      const studentFields = document.getElementById("studentRegistrationFields");
+      const updateType = () => {
+        const student = type?.value === "student";
+        doctorFields?.classList.toggle("hidden", student);
+        studentFields?.classList.toggle("hidden", !student);
+      };
+      type?.addEventListener("change", updateType);
+      updateType();
+      toggle?.addEventListener("click", () => {
+        loginForm?.classList.add("hidden");
+        toggle.classList.add("hidden");
+        form?.classList.remove("hidden");
+      });
+      document.getElementById("cancelApplicantRegistration")?.addEventListener("click", () => {
+        form?.classList.add("hidden");
+        toggle?.classList.remove("hidden");
+        loginForm?.classList.remove("hidden");
+      });
+      form?.addEventListener("submit", submitApplicantRegistration);
     }
 
     // ==================== NAVIGATION & WORKSPACE ====================
@@ -1271,6 +1364,7 @@
       try { localStorage.removeItem("homoeo_master_doctors_db"); } catch(e) {}
       // Legacy patient archives are not loaded. Existing archives are not auto-deleted to avoid silent data loss.
       initializeAuthLinkFlow();
+      configureApplicantRegistration();
       document.getElementById("forgotDoctorPassword")?.addEventListener("click", requestDoctorPasswordReset);
       document.getElementById("saveDoctorPassword")?.addEventListener("click", saveDoctorPassword);
       restoreAuthenticatedDoctor();
