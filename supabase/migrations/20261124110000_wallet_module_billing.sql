@@ -1,11 +1,11 @@
--- ClassicAI independent module subscriptions + common messaging wallet.
+-- ClassicAI AI Model add-on subscription + common SMS/WhatsApp usage wallet.
 -- Repository migration only: apply to a staging database after review; production is not changed by this commit.
 
 create schema if not exists private;
 revoke all on schema private from public, anon;
 
 create table if not exists public.premium_module_catalog (
-  module_key text primary key check (module_key in ('live_ai_agent','whatsapp_messaging','premium_clinic_suite')),
+  module_key text primary key check (module_key in ('live_ai_agent')),
   display_name text not null,
   price_paise bigint check (price_paise is null or price_paise >= 100),
   duration_days integer check (duration_days is null or duration_days between 1 and 3650),
@@ -15,9 +15,7 @@ create table if not exists public.premium_module_catalog (
 
 insert into public.premium_module_catalog(module_key,display_name,price_paise,duration_days,enabled)
 values
- ('live_ai_agent','Live AI Agent',200000,365,false),
- ('whatsapp_messaging','WhatsApp Messaging',null,null,false),
- ('premium_clinic_suite','Premium Clinic Suite',null,null,false)
+ ('live_ai_agent','AI Model / Live AI Agent',200000,365,false)
 on conflict (module_key) do nothing;
 
 create table if not exists public.doctor_module_entitlements (
@@ -36,31 +34,6 @@ create table if not exists public.doctor_module_entitlements (
 );
 create index if not exists doctor_module_entitlements_user_idx
   on public.doctor_module_entitlements(auth_user_id,module_key,status);
-
--- Premium Clinic Suite is independently entitled in addition to the existing Basic plan.
--- This makes Admin suspension effective at the RLS boundary, not just in the UI.
-create or replace function private.current_premium_doctor_id()
-returns bigint
-language sql
-stable
-security definer
-set search_path = ''
-as $
-  select d.id
-  from public.doctors d
-  join public.doctor_subscriptions s
-    on s.doctor_id=d.id and s.auth_user_id=d.auth_user_id
-  join public.doctor_module_entitlements e
-    on e.doctor_id=d.id and e.auth_user_id=d.auth_user_id
-   and e.module_key='premium_clinic_suite'
-   and e.status='active' and e.admin_suspended=false and e.paid_until>now()
-  where d.auth_user_id=(select auth.uid())
-    and d.status='Active'
-    and s.status='active' and s.starts_at<=now() and s.expires_at>now()
-  limit 1;
-$;
-revoke all on function private.current_premium_doctor_id() from public,anon;
-grant execute on function private.current_premium_doctor_id() to authenticated;
 
 create table if not exists public.premium_module_orders (
   id uuid primary key default gen_random_uuid(),
@@ -191,7 +164,6 @@ set search_path = ''
 as $$
 declare
   v_rate public.messaging_rates%rowtype;
-  v_module text;
   v_actual bigint;
   v_charge bigint;
   v_margin bigint;
@@ -211,21 +183,21 @@ begin
     return jsonb_build_object('alreadyCharged',true,'deductedPaise',v_existing.wallet_deduction_paise);
   end if;
 
-  if p_provider='sms' then
-    -- SMS has no separate gateway subscription; it is available under the active Basic plan.
-    if not exists (
-      select 1 from public.doctor_subscriptions s
-      where s.doctor_id=p_doctor_id and s.auth_user_id=p_auth_user_id
-        and s.status='active' and s.starts_at <= now() and s.expires_at > now()
-    ) then raise exception 'Active Basic subscription required for SMS'; end if;
-  else
-    if not exists (
-      select 1 from public.doctor_module_entitlements e
-      where e.doctor_id=p_doctor_id and e.auth_user_id=p_auth_user_id
-        and e.module_key='whatsapp_messaging' and e.status='active'
-        and e.admin_suspended=false and e.paid_until > now()
-    ) then raise exception 'WhatsApp subscription is not active'; end if;
-  end if;
+  -- Both SMS and WhatsApp are usage-only wallet services. No messaging subscription exists.
+  -- Messaging can be used only while the Basic app trial or paid subscription is valid.
+  if not exists (
+    select 1 from public.doctors d
+    where d.id=p_doctor_id and d.auth_user_id=p_auth_user_id
+      and d.status='Active'
+      and (
+        d.trial_expires_at > now()
+        or exists (
+          select 1 from public.doctor_subscriptions s
+          where s.doctor_id=p_doctor_id and s.auth_user_id=p_auth_user_id
+            and s.status='active' and s.starts_at <= now() and s.expires_at > now()
+        )
+      )
+  ) then raise exception 'Active Basic app access required for messaging'; end if;
 
   select * into v_rate from public.messaging_rates where provider=p_provider and enabled=true;
   if not found or v_rate.provider_cost_paise <= 0 then raise exception 'Messaging rate is not configured'; end if;
