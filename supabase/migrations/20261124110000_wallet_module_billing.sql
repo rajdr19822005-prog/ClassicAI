@@ -233,3 +233,96 @@ $$;
 revoke all on function private.charge_messaging_wallet(uuid,bigint,text,uuid,integer) from public,anon,authenticated;
 grant usage on schema private to service_role;
 grant execute on function private.charge_messaging_wallet(uuid,bigint,text,uuid,integer) to service_role;
+
+-- These service-role-only finalizers are called only after a Razorpay signature or
+-- payment.captured webhook has been verified by a trusted server function.
+create or replace function private.activate_premium_module_order(
+  p_order_id uuid,
+  p_razorpay_payment_id text
+) returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order public.premium_module_orders%rowtype;
+  v_entitlement public.doctor_module_entitlements%rowtype;
+  v_until timestamptz;
+begin
+  if p_order_id is null or coalesce(length(btrim(p_razorpay_payment_id)),0) < 5 then
+    raise exception 'Verified payment reference required';
+  end if;
+  select * into v_order from public.premium_module_orders where id=p_order_id for update;
+  if not found then raise exception 'Module order not found'; end if;
+  if v_order.status='paid' then
+    if v_order.razorpay_payment_id=p_razorpay_payment_id then
+      return jsonb_build_object('alreadyActivated',true,'moduleKey',v_order.module_key);
+    end if;
+    raise exception 'Order already paid with a different payment reference';
+  end if;
+  if v_order.status<>'pending' then raise exception 'Order is not payable'; end if;
+  update public.premium_module_orders set status='paid',razorpay_payment_id=p_razorpay_payment_id,paid_at=now()
+    where id=p_order_id;
+  select * into v_entitlement from public.doctor_module_entitlements
+    where doctor_id=v_order.doctor_id and module_key=v_order.module_key for update;
+  v_until := greatest(coalesce(v_entitlement.paid_until,now()),now()) + make_interval(days=>v_order.duration_days);
+  insert into public.doctor_module_entitlements(
+    doctor_id,auth_user_id,module_key,status,paid_until,admin_suspended,suspension_reason,
+    updated_at,last_payment_reference
+  ) values(
+    v_order.doctor_id,v_order.auth_user_id,v_order.module_key,
+    case when coalesce(v_entitlement.admin_suspended,false) then 'suspended' else 'active' end,
+    v_until,coalesce(v_entitlement.admin_suspended,false),v_entitlement.suspension_reason,
+    now(),p_razorpay_payment_id
+  )
+  on conflict(doctor_id,module_key) do update set
+    status=case when public.doctor_module_entitlements.admin_suspended then 'suspended' else 'active' end,
+    paid_until=excluded.paid_until,
+    suspension_reason=public.doctor_module_entitlements.suspension_reason,
+    last_payment_reference=excluded.last_payment_reference,updated_at=now();
+  return jsonb_build_object('alreadyActivated',false,'moduleKey',v_order.module_key,'paidUntil',v_until);
+end;
+$$;
+
+create or replace function private.apply_wallet_topup_order(
+  p_order_id uuid,
+  p_razorpay_payment_id text
+) returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order public.wallet_topup_orders%rowtype;
+  v_balance bigint;
+begin
+  if p_order_id is null or coalesce(length(btrim(p_razorpay_payment_id)),0) < 5 then
+    raise exception 'Verified payment reference required';
+  end if;
+  select * into v_order from public.wallet_topup_orders where id=p_order_id for update;
+  if not found then raise exception 'Wallet top-up order not found'; end if;
+  if v_order.status='paid' then
+    if v_order.razorpay_payment_id=p_razorpay_payment_id then
+      return jsonb_build_object('alreadyCredited',true,'amountPaise',v_order.amount_paise);
+    end if;
+    raise exception 'Top-up already paid with a different payment reference';
+  end if;
+  if v_order.status<>'pending' then raise exception 'Top-up order is not payable'; end if;
+  insert into public.doctor_wallets(doctor_id,auth_user_id,balance_paise)
+    values(v_order.doctor_id,v_order.auth_user_id,0) on conflict(doctor_id) do nothing;
+  update public.doctor_wallets set balance_paise=balance_paise+v_order.amount_paise,updated_at=now()
+    where doctor_id=v_order.doctor_id returning balance_paise into v_balance;
+  update public.wallet_topup_orders set status='paid',razorpay_payment_id=p_razorpay_payment_id,paid_at=now()
+    where id=p_order_id;
+  insert into public.wallet_ledger(doctor_id,auth_user_id,entry_type,amount_paise,balance_after_paise,
+    reference_id,idempotency_key,description)
+  values(v_order.doctor_id,v_order.auth_user_id,'topup',v_order.amount_paise,v_balance,
+    p_order_id::text,v_order.idempotency_key,'Razorpay wallet top-up');
+  return jsonb_build_object('alreadyCredited',false,'amountPaise',v_order.amount_paise,'balanceAfterPaise',v_balance);
+end;
+$$;
+
+revoke all on function private.activate_premium_module_order(uuid,text) from public,anon,authenticated;
+revoke all on function private.apply_wallet_topup_order(uuid,text) from public,anon,authenticated;
+grant execute on function private.activate_premium_module_order(uuid,text) to service_role;
+grant execute on function private.apply_wallet_topup_order(uuid,text) to service_role;
