@@ -266,7 +266,7 @@ begin
   select * into v_entitlement from public.doctor_module_entitlements
     where doctor_id=v_order.doctor_id and module_key=v_order.module_key for update;
   v_until := greatest(coalesce(v_entitlement.paid_until,now()),now()) + make_interval(days=>v_order.duration_days);
-  insert into public.doctor_module_entitlements(
+  insert into public.doctor_module_entitlements as current_entitlement(
     doctor_id,auth_user_id,module_key,status,paid_until,admin_suspended,suspension_reason,
     updated_at,last_payment_reference
   ) values(
@@ -276,9 +276,9 @@ begin
     now(),p_razorpay_payment_id
   )
   on conflict(doctor_id,module_key) do update set
-    status=case when public.doctor_module_entitlements.admin_suspended then 'suspended' else 'active' end,
+    status=case when current_entitlement.admin_suspended then 'suspended' else 'active' end,
     paid_until=excluded.paid_until,
-    suspension_reason=public.doctor_module_entitlements.suspension_reason,
+    suspension_reason=current_entitlement.suspension_reason,
     last_payment_reference=excluded.last_payment_reference,updated_at=now();
   return jsonb_build_object('alreadyActivated',false,'moduleKey',v_order.module_key,'paidUntil',v_until);
 end;
