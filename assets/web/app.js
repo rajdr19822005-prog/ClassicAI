@@ -608,13 +608,13 @@
       }
 
       const scoredList = materiaMedicaRepo.map(med => {
-        let score = 10;
+        let score = med.catalogOnly ? 0 : 10;
         let matchedSymptoms = [];
 
         if (vesLevel === "Group_A" && (med.name === "Arsenicum Album" || med.name === "Nux Vomica")) score += 4;
         if (vesLevel === "Group_C" && (med.name === "Thuja Occidentalis" || med.name === "Lycopodium Clavatum")) score += 5;
 
-        if (med.thermal.toLowerCase().includes(patientThermal.toLowerCase().substring(0, 3))) {
+        if (!med.catalogOnly && med.thermal.toLowerCase().includes(patientThermal.toLowerCase().substring(0, 3))) {
           score += 8;
           matchedSymptoms.push("Thermal Affinity (" + patientThermal.split(' ')[0] + ")");
         }
@@ -704,6 +704,19 @@
         `;
         container.appendChild(card);
       });
+
+      const fullRanking = document.getElementById("repertoryFullRanking");
+      if (fullRanking) {
+        const ranked = [...scoredList].sort((a,b) => {
+          if (Boolean(a.catalogOnly) !== Boolean(b.catalogOnly)) return a.catalogOnly ? 1 : -1;
+          return b.finalScore - a.finalScore || a.name.localeCompare(b.name);
+        });
+        fullRanking.innerHTML = ranked.map((r, idx) => `
+          <div class="flex items-center justify-between gap-2 border-b border-slate-100 py-1.5 text-[10px]">
+            <span class="min-w-0"><b class="text-slate-500 mr-1">${idx + 1}.</b><span class="font-semibold text-slate-800">${escapeHTML(r.name)}</span></span>
+            <span class="shrink-0 ${r.catalogOnly ? 'text-slate-400' : 'text-teal-800 font-bold'}">${r.catalogOnly ? 'Catalogue only · unscored' : 'Score ' + r.finalScore}</span>
+          </div>`).join("");
+      }
 
       // The local calculation is complete. Charge one token server-side before exposing
       // the completed result. The backend derives doctor identity from the verified JWT.
