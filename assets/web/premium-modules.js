@@ -220,6 +220,15 @@
     ].join("");
   }
 
+    async function verifyAiModelSubscription() {
+      const { data, error } = await supabaseClient.from("doctor_module_entitlements")
+        .select("status,paid_until,admin_suspended").eq("doctor_id",currentDoctor.id).eq("module_key","live_ai_agent").maybeSingle();
+      if (error) throw error;
+      if (!data || data.status !== "active" || data.admin_suspended || !data.paid_until || new Date(data.paid_until).getTime() <= Date.now()) {
+        throw new Error("AI Model add-on subscription is required to configure the AI provider. Open AI Model Add-on to subscribe.");
+      }
+    }
+
   function render() {
     const panel = $("premiumModulePanel");
     if (!panel) return;
@@ -241,6 +250,7 @@
         try {
           if (isPremiumDemo()) throw new Error("Safe Demo cannot save real API credentials. Sign in to an approved doctor account.");
           await verifyIntegrationAccess();
+          if (provider === "ai") await verifyAiModelSubscription();
           const values = new FormData(event.currentTarget);
           const { data, error } = await supabaseClient.functions.invoke("save-doctor-integration", {
             body: { provider, config:configBuilder(values), secret:JSON.stringify(secretBuilder(values)) }
