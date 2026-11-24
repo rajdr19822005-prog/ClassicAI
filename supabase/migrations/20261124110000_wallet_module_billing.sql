@@ -5,7 +5,7 @@ create schema if not exists private;
 revoke all on schema private from public, anon;
 
 create table if not exists public.premium_module_catalog (
-  module_key text primary key check (module_key in ('live_ai_agent','sms_gateway','whatsapp_messaging','premium_clinic_suite')),
+  module_key text primary key check (module_key in ('live_ai_agent','whatsapp_messaging','premium_clinic_suite')),
   display_name text not null,
   price_paise bigint check (price_paise is null or price_paise >= 100),
   duration_days integer check (duration_days is null or duration_days between 1 and 3650),
@@ -16,7 +16,6 @@ create table if not exists public.premium_module_catalog (
 insert into public.premium_module_catalog(module_key,display_name,price_paise,duration_days,enabled)
 values
  ('live_ai_agent','Live AI Agent',200000,365,false),
- ('sms_gateway','SMS Gateway',null,null,false),
  ('whatsapp_messaging','WhatsApp Messaging',null,null,false),
  ('premium_clinic_suite','Premium Clinic Suite',null,null,false)
 on conflict (module_key) do nothing;
@@ -187,13 +186,21 @@ begin
     return jsonb_build_object('alreadyCharged',true,'deductedPaise',v_existing.wallet_deduction_paise);
   end if;
 
-  v_module := case when p_provider='sms' then 'sms_gateway' else 'whatsapp_messaging' end;
-  if not exists (
-    select 1 from public.doctor_module_entitlements e
-    where e.doctor_id=p_doctor_id and e.auth_user_id=p_auth_user_id
-      and e.module_key=v_module and e.status='active'
-      and e.admin_suspended=false and e.paid_until > now()
-  ) then raise exception 'Messaging subscription is not active'; end if;
+  if p_provider='sms' then
+    -- SMS has no separate gateway subscription; it is available under the active Basic plan.
+    if not exists (
+      select 1 from public.doctor_subscriptions s
+      where s.doctor_id=p_doctor_id and s.auth_user_id=p_auth_user_id
+        and s.status='active' and s.starts_at <= now() and s.expires_at > now()
+    ) then raise exception 'Active Basic subscription required for SMS'; end if;
+  else
+    if not exists (
+      select 1 from public.doctor_module_entitlements e
+      where e.doctor_id=p_doctor_id and e.auth_user_id=p_auth_user_id
+        and e.module_key='whatsapp_messaging' and e.status='active'
+        and e.admin_suspended=false and e.paid_until > now()
+    ) then raise exception 'WhatsApp subscription is not active'; end if;
+  end if;
 
   select * into v_rate from public.messaging_rates where provider=p_provider and enabled=true;
   if not found or v_rate.provider_cost_paise <= 0 then raise exception 'Messaging rate is not configured'; end if;
