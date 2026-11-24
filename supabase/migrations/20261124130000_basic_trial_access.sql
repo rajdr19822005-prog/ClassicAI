@@ -19,6 +19,12 @@ language plpgsql
 set search_path = ''
 as $$
 begin
+  if tg_op = 'UPDATE' and exists (
+    select 1 from public.doctor_subscriptions s where s.doctor_id = new.id
+  ) then
+    -- Never re-grant a trial to a doctor with any prior Basic subscription history.
+    return new;
+  end if;
   if new.trial_started_at is null then
     if tg_op = 'UPDATE' then
       -- A legacy doctor record linked to an Auth account is considered provisioned now.
