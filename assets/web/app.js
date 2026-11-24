@@ -611,8 +611,8 @@
         let score = med.catalogOnly ? 0 : 10;
         let matchedSymptoms = [];
 
-        if (vesLevel === "Group_A" && (med.name === "Arsenicum Album" || med.name === "Nux Vomica")) score += 4;
-        if (vesLevel === "Group_C" && (med.name === "Thuja Occidentalis" || med.name === "Lycopodium Clavatum")) score += 5;
+        if (!med.catalogOnly && vesLevel === "Group_A" && (med.name === "Arsenicum Album" || med.name === "Nux Vomica")) score += 4;
+        if (!med.catalogOnly && vesLevel === "Group_C" && (med.name === "Thuja Occidentalis" || med.name === "Lycopodium Clavatum")) score += 5;
 
         if (!med.catalogOnly && med.thermal.toLowerCase().includes(patientThermal.toLowerCase().substring(0, 3))) {
           score += 8;
@@ -652,8 +652,11 @@
         }
 
         if (matchedSymptoms.length === 0) {
-          matchedSymptoms.push("General Constitutional Similitude", "Synthesis Rubric Overlap");
-          score += 4;
+          if (med.catalogOnly) {
+            matchedSymptoms.push("No verified rubric mapping loaded — not scored");
+          } else {
+            matchedSymptoms.push("No specific rubric match in current profile");
+          }
         }
 
         return {
