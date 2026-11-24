@@ -32,6 +32,22 @@
  $("catalog").addEventListener("click",async e=>{const b=e.target.closest("[data-catalog]");if(!b)return;try{const k=b.dataset.catalog;await api({action:"set_catalog",moduleKey:k,priceRupees:Number($("price_"+k).value),durationDays:Number($("days_"+k).value),enabled:$("on_"+k).checked});$("actionStatus").textContent="Module settings saved.";await load();}catch(x){$("actionStatus").textContent=x.message;}});
  $("rates").addEventListener("click",async e=>{const b=e.target.closest("[data-rate]");if(!b)return;try{const k=b.dataset.rate;await api({action:"set_rate",provider:k,providerCostRupees:Number($("rate_"+k).value),enabled:$("rateon_"+k).checked});$("actionStatus").textContent="Provider rate saved. The 30% margin remains fixed.";await load();}catch(x){$("actionStatus").textContent=x.message;}});
  $("apply").addEventListener("click",async()=>{try{const doctorId=Number($("doctor").value);if(!doctorId)throw new Error("Select a linked doctor.");const moduleKey=$("module").value,mode=$("mode").value;if(!confirm((mode==="suspend"?"Suspend ":"Reactivate ")+moduleKey+"?"))return;await api({action:"set_module_entitlement",doctorId,moduleKey,mode,reason:$("reason").value.trim()});$("actionStatus").textContent="Module access updated. Reactivation succeeds only if paid validity remains."; $("reason").value="";await load();}catch(x){$("actionStatus").textContent=x.message;}});
- (async()=>{try{const url=window.CLASSICAI_SUPABASE_URL,key=window.CLASSICAI_SUPABASE_PUBLISHABLE_KEY;if(!url||!key||!window.supabase?.createClient)throw new Error("Supabase site configuration unavailable.");client=window.supabase.createClient(url,key);endpoint=url+"/functions/v1/admin-module-billing";const {data:{session}}=await client.auth.getSession();if(!session)throw new Error("Sign in to the main Admin app first, then open Billing Administration.");const {data,error}=await client.auth.getUser();if(error||data.user?.app_metadata?.role!=="admin")throw new Error("Administrator role required.");await load();$("panel").classList.remove("hidden");$("status").textContent="Authenticated as administrator. Billing configuration loaded.";}catch(e){$("status").textContent=e.message;}})();
+
+ if(location.search.includes("demo=1")) {
+  $("status").textContent="Read-only visual preview. Sample rows only; no database writes or billing actions.";
+  $("panel").classList.remove("hidden");
+  $("catalog").innerHTML=[
+   ["Live AI Agent","₹2,000","365 days","Not activated"],
+   ["WhatsApp Messaging","Set by Admin","Set by Admin","Not activated"],
+   ["Premium Clinic Suite","Set by Admin","Set by Admin","Not activated"]
+  ].map(r=>"<tr><td><b>"+r[0]+"</b></td><td>"+r[1]+"</td><td>"+r[2]+"</td><td>"+r[3]+"</td><td><button disabled>Preview only</button></td></tr>").join("");
+  $("rates").innerHTML=["SMS","WhatsApp"].map(r=>"<tr><td><b>"+r+"</b></td><td>Set actual provider cost</td><td>30% fixed</td><td>Disabled</td><td><button disabled>Preview only</button></td></tr>").join("");
+  $("doctor").innerHTML='<option value="0">Sample Doctor (fictional)</option>';
+  $("doctorRows").innerHTML='<tr><td>Sample Doctor (fictional)</td><td>₹0.00</td><td>Sample only · no live entitlement</td></tr>';
+  $("apply").disabled=true;
+  $("panel").querySelectorAll("button").forEach(b=>{b.disabled=true;b.style.opacity=".55";});
+  return;
+ }
+\n (async()=>{try{const url=window.CLASSICAI_SUPABASE_URL,key=window.CLASSICAI_SUPABASE_PUBLISHABLE_KEY;if(!url||!key||!window.supabase?.createClient)throw new Error("Supabase site configuration unavailable.");client=window.supabase.createClient(url,key);endpoint=url+"/functions/v1/admin-module-billing";const {data:{session}}=await client.auth.getSession();if(!session)throw new Error("Sign in to the main Admin app first, then open Billing Administration.");const {data,error}=await client.auth.getUser();if(error||data.user?.app_metadata?.role!=="admin")throw new Error("Administrator role required.");await load();$("panel").classList.remove("hidden");$("status").textContent="Authenticated as administrator. Billing configuration loaded.";}catch(e){$("status").textContent=e.message;}})();
 })();
 </script></main></body></html>
