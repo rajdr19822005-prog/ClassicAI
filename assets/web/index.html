@@ -59,10 +59,6 @@
             <i class="fa-solid fa-shield-check"></i> Authorize & Enter App
           </button>
           <button type="button" id="forgotDoctorPassword" class="w-full text-teal-800 underline text-xs font-bold py-1">Forgot password / Set password</button>
-          <div class="text-center text-[10px] text-slate-400 font-bold">OR</div>
-          <button type="button" onclick="enterDemoMode()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold py-2.5 rounded-xl text-xs">
-            Open Safe Demo (fictional data only)
-          </button>
           <p class="text-[10px] leading-relaxed text-slate-500">Doctor login requires an invited Supabase Auth account linked to an active doctor record. Cloud case saving and payments remain disabled until separately secured and tested.</p>
         </form>
         <section id="passwordSetupPanel" class="hidden p-5 pt-0 space-y-3" aria-live="polite">
@@ -105,14 +101,14 @@
         <div class="flex items-start justify-between gap-3">
           <div>
             <p class="text-[10px] font-extrabold uppercase tracking-wider text-teal-700">ClassicAI Basic</p>
-            <h2 id="rechargeTitle" class="text-lg font-extrabold text-slate-900">12-Month Subscription</h2>
-            <p class="text-xs text-slate-500 mt-1">One subscription for the core repertorisation workflow</p>
+            <h2 id="rechargeTitle" class="text-lg font-extrabold text-slate-900">15-Day Free Trial · Then Basic</h2>
+            <p class="text-xs text-slate-500 mt-1">15 days free for every newly issued doctor account, followed by Basic subscription</p>
           </div>
           <button type="button" id="subscriptionCloseX" onclick="closeRechargeModal()" aria-label="Close subscription details" class="rounded-lg px-3 py-1 text-slate-500 hover:bg-slate-100">✕</button>
         </div>
 
         <div class="rounded-2xl border-2 border-teal-600 bg-teal-50 p-4 text-center">
-          <p class="text-xs font-bold text-teal-900">12 months</p>
+          <p class="text-xs font-bold text-teal-900">12 months after free trial</p>
           <p class="text-3xl font-black text-teal-900">₹2,999</p>
           <p class="text-xs text-teal-800">50 Repertorisation Credits included</p>
         </div>
@@ -126,20 +122,15 @@
         </div>
 
         <div class="rounded-xl border border-slate-200 p-3 space-y-1.5">
-          <p class="text-xs font-bold text-slate-800">Premium options — available after Basic subscription</p>
-          <p class="text-[11px] leading-relaxed text-slate-600">Clinic Management, Medicine Catalogue & Inventory, Billing & PDF tools, SMS/WhatsApp Automation, Live AI Agent and other premium modules will require an active Basic subscription. Some modules may have separate add-on charges.</p>
+          <p class="text-xs font-bold text-slate-800">AI Model subscription</p>
+          <p class="text-[11px] leading-relaxed text-slate-600">Clinic Management, Medicine Catalogue & Inventory, Billing & PDF tools and SMS/WhatsApp tools are included with Basic. AI Model access is the only separate add-on subscription. SMS and WhatsApp usage is charged from Common Wallet at provider cost + 30% service margin.</p>
         </div>
 
         <p class="text-[10px] leading-relaxed text-slate-500">The current repertorisation engine is a local heuristic ranking tool, not a generative AI model. Subscription activation and credits are granted only after Razorpay confirms a captured payment on the server.</p>
-        <p id="rechargeStatus" class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900" role="status">Subscription purchase is temporarily unavailable while secure server-side checkout, activation and expiry checks are completed.</p>
+        <p id="rechargeStatus" class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900" role="status">Every new doctor account receives a 15-day free Basic trial. After the trial, ₹2,999 / 12 months Basic subscription is required.</p>
         <button id="payRazorpayButton" type="button" onclick="payViaRazorpay()" disabled class="w-full rounded-xl bg-slate-400 disabled:opacity-70 text-white font-bold py-3 cursor-not-allowed" title="Secure subscription checkout is not active">Subscription checkout not active</button>
         <button id="subscriptionCloseFooter" type="button" onclick="closeRechargeModal()" class="w-full rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 text-sm">Close</button>
       </div>
-    </div>
-
-    <!-- DEMO MODE NOTICE -->
-    <div id="demoBanner" class="hidden bg-amber-100 text-amber-950 border-b border-amber-300 px-3 py-2 text-center text-[11px] font-bold">
-      DEMO MODE — fictional data only. Nothing is saved to the cloud; case saving and payments are disabled.
     </div>
 
     <!-- TOP HEADER -->
