@@ -94,9 +94,9 @@
   }
 
   async function loadIntegrationStatuses() {
-    const { data, error } = await supabaseClient.rpc("get_doctor_integration_status");
-    if (error) throw error;
-    integrationStatuses = Object.fromEntries((data || []).map(item => [item.provider, item]));
+    const { data, error } = await supabaseClient.functions.invoke("save-doctor-integration", { body: { action:"status" } });
+    if (error || !data?.success) throw new Error(data?.error || error?.message || "Could not load integration status.");
+    integrationStatuses = Object.fromEntries((data.integrations || []).map(item => [item.provider, item]));
   }
 
   async function loadData() {
