@@ -37,6 +37,31 @@ create table if not exists public.doctor_module_entitlements (
 create index if not exists doctor_module_entitlements_user_idx
   on public.doctor_module_entitlements(auth_user_id,module_key,status);
 
+-- Premium Clinic Suite is independently entitled in addition to the existing Basic plan.
+-- This makes Admin suspension effective at the RLS boundary, not just in the UI.
+create or replace function private.current_premium_doctor_id()
+returns bigint
+language sql
+stable
+security definer
+set search_path = ''
+as $
+  select d.id
+  from public.doctors d
+  join public.doctor_subscriptions s
+    on s.doctor_id=d.id and s.auth_user_id=d.auth_user_id
+  join public.doctor_module_entitlements e
+    on e.doctor_id=d.id and e.auth_user_id=d.auth_user_id
+   and e.module_key='premium_clinic_suite'
+   and e.status='active' and e.admin_suspended=false and e.paid_until>now()
+  where d.auth_user_id=(select auth.uid())
+    and d.status='Active'
+    and s.status='active' and s.starts_at<=now() and s.expires_at>now()
+  limit 1;
+$;
+revoke all on function private.current_premium_doctor_id() from public,anon;
+grant execute on function private.current_premium_doctor_id() to authenticated;
+
 create table if not exists public.premium_module_orders (
   id uuid primary key default gen_random_uuid(),
   doctor_id bigint not null references public.doctors(id) on delete restrict,
