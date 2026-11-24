@@ -5,7 +5,7 @@
   let premiumData = { patients: [], medicines: [], invoices: [], followups: [] };
   let premiumDemoSeeded = false;
   let integrationStatuses = {};
-  const isPremiumDemo = () => typeof demoMode !== "undefined" && demoMode === true;
+  const isPremiumDemo = () => false;
   function seedPremiumDemoData() {
     if (premiumDemoSeeded) return;
     const now = new Date();
@@ -31,7 +31,7 @@
   const dateLabel = (value) => value ? new Date(value).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : "—";
 
   async function verifyIntegrationAccess() {
-    if (isPremiumDemo()) throw new Error("Safe Demo cannot save real API credentials.");
+    if (isPremiumDemo()) throw new Error("Demo access is unavailable; sign in with an approved doctor account.");
     if (!currentDoctor || !supabaseClient) throw new Error("Please sign in with an approved doctor account.");
     const { data, error } = await supabaseClient.auth.getUser();
     if (error || !data?.user) throw new Error("Doctor session expired. Please sign in again.");
@@ -40,7 +40,7 @@
 
   async function verifyPremiumAccess() {
     if (isPremiumDemo()) {
-      if (!currentDoctor) throw new Error("Safe Demo session is not active.");
+      if (!currentDoctor) throw new Error("Approved doctor session is required.");
       seedPremiumDemoData();
       return "demo-local";
     }
@@ -60,11 +60,11 @@
         <div class="flex justify-between items-start gap-3">
           <div><p class="text-[10px] uppercase tracking-widest text-amber-300 font-black">ClassicAI Premium Suite</p>
           <h2 class="text-xl font-black mt-1">Clinic Workspace</h2>
-          <p class="text-xs text-slate-300 mt-1">${isPremiumDemo() ? "SAFE DEMO · fictional data only · memory-only" : "Private clinic data · doctor-only access"}</p></div>
+          <p class="text-xs text-slate-300 mt-1">Private clinic data · doctor-only access</p></div>
           <button type="button" onclick="closePremiumModules()" class="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold">Back</button>
         </div>
       </div>
-      ${isPremiumDemo() ? '<div class="rounded-xl border border-amber-300 bg-amber-50 text-amber-950 p-3 text-xs mb-3"><b>Safe Demo mode:</b> Test patient, inventory, billing and follow-up workflows with fictional sample data. Changes stay in this browser session only; nothing is uploaded, saved to Supabase, billed, or sent to WhatsApp/SMS.</div>' : ""}
+      
       <div class="grid grid-cols-3 gap-1.5 mb-3">
         <button onclick="switchPremiumTab('overview')" class="pm-tab" data-tab="overview">Overview</button>
         <button onclick="switchPremiumTab('patients')" class="pm-tab" data-tab="patients">Patients</button>
