@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
 
     if (action === "list_doctors") {
       const { data, error } = await admin.from("doctors")
-        .select("id,doctor_name,clinic_name,reg_no,whatsapp_no,ai_tokens,status,auth_user_id,created_at")
+        .select("id,doctor_name,clinic_name,reg_no,whatsapp_no,ai_tokens,status,auth_user_id,created_at,applicant_type,registration_type,college_name,course_name,study_year,student_id,verification_status")
         .order("id", { ascending: false });
       if (error) throw error;
       return json(200, { doctors: data ?? [] });
