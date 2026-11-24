@@ -129,8 +129,10 @@ Deno.serve(async (req) => {
       if (!Number.isSafeInteger(doctorId) || doctorId < 1 || !["Active", "Inactive", "Pending"].includes(status)) {
         return json(400, { error: "Valid doctorId and status are required" });
       }
-      const verification_status = status === "Active" ? "verified" : (status === "Pending" ? "pending" : "rejected");
-      const { error } = await admin.from("doctors").update({ status, verification_status }).eq("id", doctorId);
+      const update: Record<string, unknown> = { status };
+      if (status === "Active") update.verification_status = "verified";
+      else if (status === "Pending") update.verification_status = "pending";
+      const { error } = await admin.from("doctors").update(update).eq("id", doctorId);
       if (error) throw error;
       return json(200, { success: true });
     }
