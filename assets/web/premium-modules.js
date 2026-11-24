@@ -4,6 +4,7 @@
   let premiumTab = "overview";
   let premiumData = { patients: [], medicines: [], invoices: [], followups: [] };
   let premiumDemoSeeded = false;
+  let integrationStatuses = {};
   const isPremiumDemo = () => typeof demoMode !== "undefined" && demoMode === true;
   function seedPremiumDemoData() {
     if (premiumDemoSeeded) return;
@@ -100,6 +101,9 @@
       if (result.error) throw new Error(result.error.message || ("Could not load " + name));
     }
     premiumData = { patients:patients.data || [], medicines:medicines.data || [], invoices:invoices.data || [], followups:followups.data || [] };
+    const { data: integrationRows, error: integrationError } = await supabaseClient.rpc("get_doctor_integration_status");
+    if (integrationError) throw integrationError;
+    integrationStatuses = Object.fromEntries((integrationRows || []).map(item => [item.provider, item]));
   }
 
   function overviewView() {
@@ -218,6 +222,35 @@
   }
 
   function bindForms() {
+    const saveIntegration = (formId, provider, configBuilder, secretBuilder, successText) => {
+      $(formId)?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        try {
+          if (isPremiumDemo()) throw new Error("Safe Demo cannot save real API credentials. Sign in to an approved doctor account.");
+          await verifyPremiumAccess();
+          const values = new FormData(event.currentTarget);
+          const { data, error } = await supabaseClient.functions.invoke("save-doctor-integration", {
+            body: { provider, config:configBuilder(values), secret:JSON.stringify(secretBuilder(values)) }
+          });
+          if (error || !data?.success) throw new Error(data?.error || error?.message || "Could not save integration credentials.");
+          await loadData();
+          render();
+          status(successText + " Credentials are encrypted in server-side Vault storage.");
+        } catch (error) { status(error.message || "Integration settings could not be saved.", true); }
+      });
+    };
+    saveIntegration("pmAiIntegrationForm","ai",
+      f => ({base_url:String(f.get("base_url")).trim(),model:String(f.get("model")).trim()}),
+      f => ({api_key:String(f.get("api_key") || "").trim()}),
+      "AI provider settings saved.");
+    saveIntegration("pmSmsIntegrationForm","sms",
+      f => ({account_sid:String(f.get("account_sid")).trim(),from_number:String(f.get("from_number")).trim(),provider:"twilio"}),
+      f => ({auth_token:String(f.get("auth_token") || "").trim()}),
+      "SMS gateway settings saved.");
+    saveIntegration("pmWhatsAppIntegrationForm","whatsapp",
+      f => ({phone_number_id:String(f.get("phone_number_id")).trim(),waba_id:String(f.get("waba_id")).trim(),graph_version:String(f.get("graph_version") || "v23.0").trim(),provider:"meta-cloud-api"}),
+      f => ({access_token:String(f.get("access_token") || "").trim(),verify_token:String(f.get("verify_token") || "").trim()}),
+      "WhatsApp Cloud API settings saved.");
     $("pmPatientForm")?.addEventListener("submit", async (event) => {
       event.preventDefault();
       try {
