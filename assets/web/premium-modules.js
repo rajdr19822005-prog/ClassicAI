@@ -35,6 +35,8 @@
     if (!currentDoctor || !supabaseClient) throw new Error("Please sign in with an approved doctor account.");
     const { data, error } = await supabaseClient.auth.getUser();
     if (error || !data?.user) throw new Error("Doctor session expired. Please sign in again.");
+    const { data: basic, error: basicError } = await supabaseClient.functions.invoke("get-basic-subscription-status", { body: {} });
+    if (basicError || !basic?.active) throw new Error("An active Basic trial or subscription is required for SMS / WhatsApp / AI integration settings.");
     return data.user.id;
   }
 
