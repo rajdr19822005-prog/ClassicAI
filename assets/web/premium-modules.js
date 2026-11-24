@@ -62,7 +62,7 @@
         <button onclick="switchPremiumTab('inventory')" class="pm-tab" data-tab="inventory">Inventory</button>
         <button onclick="switchPremiumTab('billing')" class="pm-tab" data-tab="billing">Billing</button>
         <button onclick="switchPremiumTab('followups')" class="pm-tab" data-tab="followups">Follow-ups</button>
-        <button onclick="switchPremiumTab('agent')" class="pm-tab" data-tab="agent">AI Agent</button>
+        <button onclick="switchPremiumTab('agent')" class="pm-tab" data-tab="integrations">Integrations</button>
       </div>
       <div id="premiumModuleStatus" class="hidden rounded-xl border p-3 text-xs mb-3" role="status"></div>
       <div id="premiumModulePanel" class="space-y-3"></div>
@@ -190,22 +190,24 @@
       </div>`;
   }
 
-  function agentView() {
-    return `
-      <div class="bg-white border rounded-xl p-4 space-y-3">
-        <div class="w-11 h-11 rounded-xl bg-violet-100 text-violet-800 flex items-center justify-center"><i class="fa-solid fa-robot text-xl"></i></div>
-        <h3 class="font-bold text-base">Live AI Clinic Agent</h3>
-        <p class="text-xs text-slate-600">This module is reserved for a secure assistant that can draft visit summaries, prepare follow-up queues and answer clinic workflow questions with doctor approval.</p>
-        <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Not connected yet. No AI requests are sent and no clinical recommendations are generated here. Activation requires an AI provider key stored server-side, a model choice, data-retention controls and usage/billing limits.</div>
-      </div>
-      <div class="bg-white border rounded-xl p-3"><h3 class="font-bold text-sm">SMS automation</h3><p class="text-xs text-slate-600 mt-1">SMS delivery is not connected. Follow-up records can be managed here; WhatsApp messages require manual doctor review and send.</p></div>`;
+  function integrationsView() {
+    const pill = (provider) => integrationStatuses[provider]?.configured
+      ? '<span class="text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-800 px-2 py-1">Credentials saved securely</span>'
+      : '<span class="text-[10px] font-bold rounded-full bg-amber-100 text-amber-900 px-2 py-1">Not configured</span>';
+    return [
+      '<div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950"><b>Integration settings:</b> Credentials are stored encrypted in Supabase Vault. Saving credentials does not yet activate outbound AI, SMS or WhatsApp sending; provider testing and message workflows are separate release steps.</div>',
+      '<form id="pmAiIntegrationForm" class="bg-white border rounded-xl p-3 space-y-2"><div class="flex justify-between items-center"><h3 class="font-bold text-sm">Live AI Agent</h3>' + pill("ai") + '</div><label>API endpoint (OpenAI-compatible)</label><input name="base_url" type="url" required value="https://api.openai.com/v1" class="w-full border rounded-lg p-2 text-sm"><label>Model name</label><input name="model" required value="gpt-4.1-mini" class="w-full border rounded-lg p-2 text-sm"><label>API key</label><input name="api_key" type="password" autocomplete="new-password" required placeholder="Paste AI API key" class="w-full border rounded-lg p-2 text-sm"><button class="w-full bg-violet-700 text-white rounded-lg py-2.5 text-sm font-bold">Save AI credentials securely</button></form>',
+      '<form id="pmSmsIntegrationForm" class="bg-white border rounded-xl p-3 space-y-2"><div class="flex justify-between items-center"><h3 class="font-bold text-sm">SMS Gateway · Twilio</h3>' + pill("sms") + '</div><label>Account SID</label><input name="account_sid" required placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" class="w-full border rounded-lg p-2 text-sm"><label>Auth Token</label><input name="auth_token" type="password" autocomplete="new-password" required placeholder="Twilio Auth Token" class="w-full border rounded-lg p-2 text-sm"><label>Sender number (E.164)</label><input name="from_number" required placeholder="+1xxxxxxxxxx" class="w-full border rounded-lg p-2 text-sm"><button class="w-full bg-sky-700 text-white rounded-lg py-2.5 text-sm font-bold">Save SMS credentials securely</button></form>',
+      '<form id="pmWhatsAppIntegrationForm" class="bg-white border rounded-xl p-3 space-y-2"><div class="flex justify-between items-center"><h3 class="font-bold text-sm">WhatsApp Business Cloud API</h3>' + pill("whatsapp") + '</div><label>Phone Number ID</label><input name="phone_number_id" required placeholder="Meta Phone Number ID" class="w-full border rounded-lg p-2 text-sm"><label>WhatsApp Business Account ID</label><input name="waba_id" required placeholder="WABA ID" class="w-full border rounded-lg p-2 text-sm"><label>System User Access Token</label><input name="access_token" type="password" autocomplete="new-password" required placeholder="Meta Graph API access token" class="w-full border rounded-lg p-2 text-sm"><label>Webhook Verify Token (optional)</label><input name="verify_token" type="password" autocomplete="new-password" placeholder="Custom verify token" class="w-full border rounded-lg p-2 text-sm"><label>Graph API version</label><input name="graph_version" value="v23.0" class="w-full border rounded-lg p-2 text-sm"><button class="w-full bg-emerald-700 text-white rounded-lg py-2.5 text-sm font-bold">Save WhatsApp API securely</button></form>',
+      '<div class="rounded-xl border bg-slate-50 p-3 text-[11px] text-slate-700"><b>Important:</b> Use official credentials only. Respect WhatsApp opt-in and approved templates. Never paste a Supabase service-role key here.</div>'
+    ].join("");
   }
 
   function render() {
     const panel = $("premiumModulePanel");
     if (!panel) return;
     tabs();
-    const views = { overview:overviewView, patients:patientsView, inventory:inventoryView, billing:billingView, followups:followupsView, agent:agentView };
+    const views = { overview:overviewView, patients:patientsView, inventory:inventoryView, billing:billingView, followups:followupsView, integrations:integrationsView };
     panel.innerHTML = views[premiumTab]();
     bindForms();
   }
