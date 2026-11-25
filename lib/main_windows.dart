@@ -48,7 +48,6 @@ class _ClassicAiDesktopHomeState extends State<ClassicAiDesktopHome> {
     try {
       await _controller.initialize();
       await _controller.setDefaultContextMenusEnabled(true);
-      await _controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
       await _controller.loadUrl(classicAiDesktopUrl);
       if (!mounted) return;
       setState(() {
