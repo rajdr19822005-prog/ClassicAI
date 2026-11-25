@@ -1,0 +1,68 @@
+name: Windows Desktop
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Windows platform files
+        run: flutter create --platforms=windows --org=com.classicai .
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze and test
+        run: |
+          flutter analyze --no-fatal-infos
+          flutter test
+
+      - name: Build ClassicAI Desktop
+        run: flutter build windows --release -t lib/main_windows.dart
+
+      - name: Download Microsoft WebView2 Runtime bootstrapper
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "dist/MicrosoftEdgeWebView2Setup.exe"
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Create Windows installer
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=0.1.1 installer/classicai.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
+
+      - name: Create portable application archive
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath "dist/ClassicAI-Desktop-Portable.zip" -Force
+
+      - name: Upload Windows installer and portable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClassicAI-Windows-Desktop
+          path: |
+            dist/ClassicAI-Desktop-Setup.exe
+            dist/ClassicAI-Desktop-Portable.zip
+          if-no-files-found: error
+          retention-days: 30
