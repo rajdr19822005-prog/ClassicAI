@@ -1,10 +1,27 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:webview_flutter_windows/webview_flutter_windows.dart';
+import 'package:window_manager/window_manager.dart';
 
 const classicAiDesktopUrl = 'https://classicai.vercel.app/assets/web/index.html';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await windowManager.ensureInitialized();
+
+  const windowOptions = WindowOptions(
+    fullScreen: true,
+    titleBarStyle: TitleBarStyle.hidden,
+    backgroundColor: Colors.white,
+    title: 'ClassicAI',
+  );
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
+
   runApp(const ClassicAiDesktopApp());
 }
 
@@ -61,7 +78,7 @@ class _ClassicAiDesktopHomeState extends State<ClassicAiDesktopHome> {
         _loading = false;
         _error = error.toString().contains('environment_creation_failed')
             ? 'Microsoft Edge WebView2 Runtime is not available. Install or repair WebView2, then restart ClassicAI.'
-            : 'ClassicAI could not start. Check your internet connection and try again.\n$error';
+            : 'ClassicAI could not start. Check your internet connection and try again.\\n$error';
       });
     }
   }
@@ -83,6 +100,31 @@ class _ClassicAiDesktopHomeState extends State<ClassicAiDesktopHome> {
     }
   }
 
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+    if (event.logicalKey == LogicalKeyboardKey.f11) {
+      unawaited(windowManager.isFullScreen().then(
+        (isFullScreen) => windowManager.setFullScreen(!isFullScreen),
+      ));
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      unawaited(windowManager.setFullScreen(false));
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.f5 ||
+        (event.logicalKey == LogicalKeyboardKey.keyR &&
+            HardwareKeyboard.instance.isControlPressed)) {
+      unawaited(_reload());
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -92,23 +134,16 @@ class _ClassicAiDesktopHomeState extends State<ClassicAiDesktopHome> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('ClassicAI'),
-        actions: [
-          IconButton(
-            tooltip: 'Reload',
-            onPressed: _reload,
-            icon: const Icon(Icons.refresh),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Stack(
-        children: [
-          if (_ready) Positioned.fill(child: Webview(_controller)),
-          if (_loading)
-            const Positioned.fill(
-              child: ColoredBox(
+      backgroundColor: Colors.white,
+      body: Focus(
+        autofocus: true,
+        onKeyEvent: _handleKeyEvent,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (_ready) Webview(_controller),
+            if (_loading)
+              const ColoredBox(
                 color: Colors.white,
                 child: Center(
                   child: CircularProgressIndicator(
@@ -116,10 +151,8 @@ class _ClassicAiDesktopHomeState extends State<ClassicAiDesktopHome> {
                   ),
                 ),
               ),
-            ),
-          if (_error != null)
-            Positioned.fill(
-              child: ColoredBox(
+            if (_error != null)
+              ColoredBox(
                 color: Colors.white,
                 child: Center(
                   child: Padding(
@@ -144,14 +177,20 @@ class _ClassicAiDesktopHomeState extends State<ClassicAiDesktopHome> {
                             icon: const Icon(Icons.refresh),
                             label: const Text('Retry'),
                           ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'F11: toggle fullscreen  •  Esc: exit fullscreen  •  F5: reload',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.black54, fontSize: 12),
+                          ),
                         ],
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
