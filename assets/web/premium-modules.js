@@ -23,7 +23,11 @@
     premiumDemoSeeded = true;
   }
   const $ = (id) => document.getElementById(id);
-  const BASIC_MEDICINE_MASTER = ["Abies canadensis","Abies nigra","Aconitum napellus","Actaea racemosa (Cimicifuga)","Aesculus hippocastanum","Aethusa cynapium","Agaricus muscarius","Agnus castus","Allium cepa","Allium sativum","Aloe socotrina","Alumina","Ambra grisea","Ammonium carbonicum","Anacardium orientale","Antimonium crudum","Antimonium tartaricum","Apis mellifica","Argentum nitricum","Arnica montana","Arsenicum album","Arsenicum iodatum","Arum triphyllum","Asafoetida","Aurum metallicum","Baptisia tinctoria","Baryta carbonica","Belladonna","Bellis perennis","Berberis vulgaris","Borax","Bryonia alba","Cactus grandiflorus","Calcarea carbonica","Calcarea fluorica","Calcarea phosphorica","Calcarea sulphurica","Calendula officinalis","Camphora","Cantharis","Capsicum annuum","Carbo animalis","Carbo vegetabilis","Caulophyllum thalictroides","Causticum","Chamomilla","Chelidonium majus","China officinalis (Cinchona)","Cicuta virosa","Cina","Cinnabaris","Cocculus indicus","Coccus cacti","Coffea cruda","Colchicum autumnale","Colocynthis","Conium maculatum","Crataegus oxyacantha","Crocus sativus","Cuprum metallicum","Cyclamen europaeum","Digitalis purpurea","Dioscorea villosa","Drosera rotundifolia","Dulcamara","Echinacea angustifolia","Eupatorium perfoliatum","Euphrasia officinalis","Ferrum metallicum","Ferrum phosphoricum","Fluoricum acidum","Gelsemium sempervirens","Glonoinum","Graphites","Hamamelis virginiana","Hepar sulphuris calcareum","Hydrastis canadensis","Hypericum perforatum","Ignatia amara","Iodium","Ipecacuanha","Kali bichromicum","Kali carbonicum","Kali muriaticum","Kali phosphoricum","Kali sulphuricum","Kreosotum","Lachesis mutus","Ledum palustre","Lilium tigrinum","Lycopodium clavatum","Magnesia carbonica","Magnesia phosphorica","Magnesia muriatica","Medorrhinum","Mercurius corrosivus","Mercurius solubilis","Mezereum","Millefolium","Moschus","Natrum carbonicum","Natrum muriaticum","Natrum phosphoricum","Natrum sulphuricum","Nitricum acidum","Nux moschata","Nux vomica","Opium","Petroleum","Phosphoricum acidum","Phosphorus","Phytolacca decandra","Platina","Plumbum metallicum","Podophyllum peltatum","Psorinum","Pulsatilla nigricans","Rhus toxicodendron","Ruta graveolens","Sabina","Sabadilla","Sambucus nigra","Sanguinaria canadensis","Secale cornutum","Sepia officinalis","Silicea","Spigelia anthelmia","Spongia tosta","Staphysagria","Stramonium","Sulphur","Symphytum officinale","Syphilinum","Tabacum","Tarentula hispanica","Thuja occidentalis","Tuberculinum","Urtica urens","Veratrum album","Zincum metallicum","Adonis vernalis (Q)","Berberis vulgaris (Q)","Calendula officinalis (Q)","Carduus marianus (Q)","Chelidonium majus (Q)","Crataegus oxyacantha (Q)","Echinacea angustifolia (Q)","Hydrastis canadensis (Q)","Passiflora incarnata (Q)","Rauwolfia serpentina (Q)","Sabal serrulata (Q)","Sarsaparilla (Q)","Terminalia arjuna (Q)","Uva ursi (Q)","Calcarea fluorica 6X","Calcarea phosphorica 6X","Calcarea sulphurica 6X","Ferrum phosphoricum 6X","Kali muriaticum 6X","Kali phosphoricum 6X","Kali sulphuricum 6X","Magnesia phosphorica 6X","Natrum muriaticum 6X","Natrum phosphoricum 6X","Natrum sulphuricum 6X","Silicea 6X","Carcinosinum","Influenzinum","Diphtherinum","Pertussinum","Bacillinum","Tuberculinum bovinum","Variolinum","Lac caninum","Lac humanum"];
+  const normalizeMedicineName = (name) => String(name || "").toLowerCase().replace(/\([^)]*\)/g, "").replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+  const BASIC_MEDICINE_MASTER = [...new Map([
+    ...(Array.isArray(window.CLASSICAI_REPERTORY_CATALOG) ? window.CLASSICAI_REPERTORY_CATALOG : []),
+    ...(Array.isArray(window.CLASSICAI_BOERICKE_1927_REMEDIES) ? window.CLASSICAI_BOERICKE_1927_REMEDIES : [])
+  ].map(name => [normalizeMedicineName(name), name])).values()].sort((a,b) => a.localeCompare(b));
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, c => ({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
   })[c]);
@@ -153,26 +157,76 @@
       </div>`;
   }
 
-  function inventoryView() {
-    return `
-      <form id="pmMedicineForm" class="bg-white border rounded-xl p-3 space-y-2">
-        <h3 class="font-bold text-sm">Add inventory item</h3>
-        <label class="block text-[11px] font-bold text-slate-700">Medicine Master · 175 common entries</label>
-        <input name="medicine_name" list="pmMedicineMasterList" required maxlength="160" placeholder="Search or type medicine name" class="w-full border rounded-lg p-2 text-sm">
-        <datalist id="pmMedicineMasterList">${BASIC_MEDICINE_MASTER.map(name => `<option value="${esc(name)}"></option>`).join("")}</datalist>
-        <p class="text-[10px] text-slate-500">Includes commonly used single remedies, 12 tissue salts, selected mother tinctures and nosodes. You can still enter any custom medicine.</p>
-        <div class="grid grid-cols-2 gap-2"><input name="potency" maxlength="40" placeholder="Potency (e.g. 30C)" class="border rounded-lg p-2 text-sm">
-        <select name="dosage_form" class="border rounded-lg p-2 text-sm"><option>Globules</option><option>Tablet</option><option>Liquid</option><option>Mother Tincture</option><option>Other</option></select></div>
-        <div class="grid grid-cols-2 gap-2"><input name="batch_number" maxlength="80" placeholder="Batch no." class="border rounded-lg p-2 text-sm">
-        <input name="expiry_date" type="date" class="border rounded-lg p-2 text-sm"></div>
-        <div class="grid grid-cols-3 gap-2"><input name="stock_qty" type="number" min="0" step="0.01" value="0" placeholder="Stock" class="border rounded-lg p-2 text-sm"><input name="reorder_level" type="number" min="0" step="0.01" value="0" placeholder="Alert at" class="border rounded-lg p-2 text-sm"><input name="unit_price" type="number" min="0" step="0.01" value="0" placeholder="Price ₹" class="border rounded-lg p-2 text-sm"></div>
-        <button class="w-full bg-teal-800 text-white rounded-lg py-2.5 text-sm font-bold">Save inventory item</button>
-      </form>
-      <div class="bg-white border rounded-xl p-3"><h3 class="font-bold text-sm mb-2">Stock ledger</h3>
-        <div class="space-y-2">${premiumData.medicines.map(m => { const low = Number(m.stock_qty) <= Number(m.reorder_level); return `<div class="border-b last:border-0 pb-2 flex justify-between gap-2"><div><p class="font-bold text-sm">${esc(m.medicine_name)} ${esc(m.potency)}</p><p class="text-[11px] text-slate-500">${esc(m.dosage_form)} · Batch ${esc(m.batch_number || "—")} · Exp ${dateLabel(m.expiry_date)}</p></div><div class="text-right"><p class="font-black ${low ? "text-amber-700" : "text-slate-900"}">${esc(m.stock_qty)}</p><p class="text-[10px] text-slate-500">Qty · ${money(m.unit_price)}</p><button type="button" onclick="adjustPremiumStock('${esc(m.id)}')" class="text-[10px] text-teal-800 underline font-bold">Adjust stock</button></div></div>`; }).join("") || '<p class="text-xs text-slate-500">No inventory items yet.</p>'}</div>
+  function inventoryListMarkup(query = "", potency = "") {
+    const q = normalizeMedicineName(query);
+    const items = premiumData.medicines.filter(m =>
+      (!q || normalizeMedicineName(m.medicine_name).includes(q)) &&
+      (!potency || String(m.potency || "").toLowerCase() === potency.toLowerCase())
+    );
+    return items.map(m => {
+      const low = Number(m.stock_qty) <= Number(m.reorder_level);
+      return `<div class="rounded-xl border border-slate-100 bg-white px-3 py-3 flex items-center justify-between gap-3">
+        <div class="min-w-0"><p class="font-semibold text-sm text-slate-900 truncate">${esc(m.medicine_name)}</p>
+        <p class="text-xs text-teal-800 font-semibold">${esc(m.potency || "Potency not set")} · ${esc(m.dosage_form)}</p>
+        <p class="text-[10px] text-slate-500 mt-0.5">Batch ${esc(m.batch_number || "—")} · Exp ${dateLabel(m.expiry_date)}</p></div>
+        <div class="shrink-0 text-right"><p class="font-bold text-sm ${low ? "text-amber-700" : "text-slate-900"}">${esc(m.stock_qty)}</p>
+        <p class="text-[10px] text-slate-500">in stock · ${money(m.unit_price)}</p>
+        <button type="button" onclick="adjustPremiumStock('${esc(m.id)}')" class="mt-1 text-[10px] text-teal-800 underline font-semibold">Update qty</button></div>
       </div>`;
+    }).join("") || '<p class="rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-500">No matching stock found. Try another search or add this medicine above.</p>';
   }
 
+  function inventoryView() {
+    const potencies = [...new Set(premiumData.medicines.map(m => String(m.potency || "").trim()).filter(Boolean))].sort();
+    return `
+      <section class="rounded-2xl bg-white border border-slate-200 p-3 space-y-3">
+        <div><p class="text-[10px] font-bold uppercase tracking-wider text-teal-700">Medicine catalogue</p>
+          <h3 class="text-base font-bold text-slate-900">Add to clinic stock</h3>
+          <p class="text-[11px] text-slate-500 mt-0.5">${BASIC_MEDICINE_MASTER.length} unique names · Boericke public-domain index + ClassicAI catalogue</p></div>
+        <form id="pmMedicineForm" class="space-y-3">
+          <div class="grid grid-cols-[minmax(0,1fr)_86px_76px] gap-2 items-end">
+            <label class="min-w-0 block text-[10px] font-semibold text-slate-600">Search medicine
+              <input name="medicine_name" list="pmMedicineMasterList" required maxlength="160" placeholder="Type remedy name" class="mt-1 w-full min-w-0 border border-slate-200 rounded-xl px-2.5 py-3 text-sm focus:border-teal-600 focus:outline-none">
+            </label>
+            <label class="block text-[10px] font-semibold text-slate-600">Potency
+              <input name="potency" list="pmPotencyList" maxlength="40" placeholder="30C" class="mt-1 w-full min-w-0 border border-slate-200 rounded-xl px-2 py-3 text-sm focus:border-teal-600 focus:outline-none">
+            </label>
+            <label class="block text-[10px] font-semibold text-slate-600">Quantity
+              <input name="stock_qty" type="number" min="0" step="0.01" value="0" inputmode="decimal" class="mt-1 w-full min-w-0 border border-slate-200 rounded-xl px-2 py-3 text-sm focus:border-teal-600 focus:outline-none">
+            </label>
+          </div>
+          <datalist id="pmMedicineMasterList">${BASIC_MEDICINE_MASTER.map(name => `<option value="${esc(name)}"></option>`).join("")}</datalist>
+          <datalist id="pmPotencyList"><option value="Q"><option value="3X"><option value="6X"><option value="12X"><option value="30X"><option value="6C"><option value="30C"><option value="200C"><option value="1M"><option value="10M"></datalist>
+          <details class="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
+            <summary class="cursor-pointer text-xs font-semibold text-slate-700">Batch, expiry & pricing (optional)</summary>
+            <div class="grid grid-cols-2 gap-2 pt-3">
+              <input name="dosage_form" list="pmDosageForms" value="Globules" placeholder="Dosage form" class="border border-slate-200 rounded-lg p-2 text-xs">
+              <datalist id="pmDosageForms"><option value="Globules"><option value="Tablet"><option value="Liquid"><option value="Mother Tincture"><option value="Other"></datalist>
+              <input name="batch_number" maxlength="80" placeholder="Batch number" class="border border-slate-200 rounded-lg p-2 text-xs">
+              <input name="expiry_date" type="date" aria-label="Expiry date" class="border border-slate-200 rounded-lg p-2 text-xs">
+              <input name="reorder_level" type="number" min="0" step="0.01" value="0" placeholder="Low-stock alert at" class="border border-slate-200 rounded-lg p-2 text-xs">
+              <input name="unit_price" type="number" min="0" step="0.01" value="0" placeholder="Unit price ₹" class="border border-slate-200 rounded-lg p-2 text-xs">
+            </div>
+          </details>
+          <button class="w-full rounded-xl bg-teal-800 text-white py-3 text-sm font-bold shadow-sm">Add medicine to stock</button>
+        </form>
+      </section>
+      <section class="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 space-y-2">
+        <div class="flex items-center justify-between"><div><h3 class="text-sm font-bold text-slate-900">Clinic inventory</h3><p class="text-[10px] text-slate-500">${premiumData.medicines.length} stock items</p></div><span class="rounded-full bg-white border px-2.5 py-1 text-[10px] font-semibold text-slate-600">Search & filter</span></div>
+        <div class="grid grid-cols-[minmax(0,1fr)_112px] gap-2">
+          <input id="pmInventorySearch" type="search" oninput="filterPremiumInventory()" placeholder="Search stock by medicine..." class="w-full min-w-0 border border-slate-200 bg-white rounded-xl px-3 py-2.5 text-sm">
+          <select id="pmInventoryPotency" onchange="filterPremiumInventory()" class="w-full min-w-0 border border-slate-200 bg-white rounded-xl px-2 py-2.5 text-xs"><option value="">All potencies</option>${potencies.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join("")}</select>
+        </div>
+        <div id="pmInventoryList" class="space-y-2">${inventoryListMarkup()}</div>
+      </section>`;
+  }
+
+  window.filterPremiumInventory = function() {
+    const query = $("pmInventorySearch")?.value || "";
+    const potency = $("pmInventoryPotency")?.value || "";
+    const list = $("pmInventoryList");
+    if (list) list.innerHTML = inventoryListMarkup(query, potency);
+  };
   function billingView() {
     const options = premiumData.patients.map(p => `<option value="${esc(p.id)}">${esc(p.full_name)}</option>`).join("");
     return `
