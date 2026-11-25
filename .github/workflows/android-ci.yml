@@ -56,7 +56,9 @@ jobs:
       - name: Validate app JavaScript and security invariants
         run: |
           node --check assets/web/app.js
-          ! grep -Eq 'SUPABASE_ANON_KEY|supabaseClient\.from\("(patient_cases|payment_orders)"\)|rzp_live_|jyotidr\.19822005-1@oksbi|919235551713|localStorage\.(getItem|setItem)\("khc_saved_cases"' assets/web/app.js
+          node --check assets/web/clinical-enhancements.js
+          node --check assets/web/premium-modules.js
+          ! grep -Eq 'SUPABASE_ANON_KEY|supabaseClient\\.from\\("payment_orders"\\)|service_role|rzp_live_|jyotidr\\.19822005-1@oksbi|919235551713|localStorage\\.(getItem|setItem)\\("khc_saved_cases"' assets/web/app.js
       - name: Build doctor and admin APKs
         shell: bash
         run: |

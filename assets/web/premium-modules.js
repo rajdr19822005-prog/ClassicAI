@@ -1,0 +1,538 @@
+/* ClassicAI Premium Clinic Modules — browser client only; RLS enforces doctor ownership. */
+(() => {
+  "use strict";
+  let premiumTab = "overview";
+  let premiumData = { patients: [], medicines: [], invoices: [], followups: [] };
+  let premiumDemoSeeded = false;
+  let integrationStatuses = {};
+  const isPremiumDemo = () => typeof demoMode !== "undefined" && demoMode === true;
+  function seedPremiumDemoData() {
+    if (premiumDemoSeeded) return;
+    const now = new Date();
+    const today = now.toISOString();
+    const patientId = "demo-patient-001";
+    premiumData = {
+      patients: [{ id:patientId, full_name:"Aarav Sharma (Sample)", phone:"9000000001", age:34, gender:"Male", notes:"Fictional demo record only.", created_at:today }],
+      medicines: [
+        { id:"demo-medicine-001", medicine_name:"Demo Globules", potency:"30C", dosage_form:"Globules", batch_number:"DEMO-001", expiry_date:new Date(now.getFullYear()+1,now.getMonth(),1).toISOString().slice(0,10), stock_qty:8, reorder_level:10, unit_price:45 },
+        { id:"demo-medicine-002", medicine_name:"Demo Mother Tincture", potency:"Q", dosage_form:"Mother Tincture", batch_number:"DEMO-002", expiry_date:new Date(now.getFullYear()+2,now.getMonth(),1).toISOString().slice(0,10), stock_qty:24, reorder_level:5, unit_price:120 }
+      ],
+      invoices: [{ id:"demo-invoice-001", invoice_no:"CA-DEMO-001", patient_id:patientId, patient_name:"Aarav Sharma (Sample)", line_items:[{description:"Consultation (sample)",quantity:1,rate:500,amount:500}], subtotal:500, discount:0, total:500, payment_status:"unpaid", created_at:today, notes:"Fictional demo invoice." }],
+      followups: [{ id:"demo-followup-001", patient_id:patientId, clinic_patients:{full_name:"Aarav Sharma (Sample)",phone:"9000000001"}, due_at:new Date(now.getTime()+86400000).toISOString(), message:"This is a sample reminder. Do not send to a real patient.", status:"pending", channel:"whatsapp" }]
+    };
+    premiumDemoSeeded = true;
+  }
+  const $ = (id) => document.getElementById(id);
+  const normalizeMedicineName = (name) => String(name || "").toLowerCase().replace(/\([^)]*\)/g, "").replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+  const BASIC_MEDICINE_MASTER = [...new Map([
+    ...(Array.isArray(window.CLASSICAI_REPERTORY_CATALOG) ? window.CLASSICAI_REPERTORY_CATALOG : []),
+    ...(Array.isArray(window.CLASSICAI_BOERICKE_1927_REMEDIES) ? window.CLASSICAI_BOERICKE_1927_REMEDIES : [])
+  ].map(name => [normalizeMedicineName(name), name])).values()].sort((a,b) => a.localeCompare(b));
+  const esc = (value) => String(value ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  })[c]);
+  const money = (value) => "₹" + Number(value || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const dateLabel = (value) => value ? new Date(value).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : "—";
+
+  async function verifyIntegrationAccess() {
+    if (isPremiumDemo()) throw new Error("Safe Demo cannot save real API credentials.");
+    if (!currentDoctor || !supabaseClient) throw new Error("Please sign in with an approved doctor account.");
+    const { data, error } = await supabaseClient.auth.getUser();
+    if (error || !data?.user) throw new Error("Doctor session expired. Please sign in again.");
+    return data.user.id;
+  }
+
+  async function verifyPremiumAccess() {
+    if (isPremiumDemo()) {
+      if (!currentDoctor) throw new Error("Safe Demo session is not active.");
+      seedPremiumDemoData();
+      return "demo-local";
+    }
+    if (!currentDoctor || !supabaseClient) throw new Error("पहले approved doctor account से sign in करें।");
+    const { data, error } = await supabaseClient.functions.invoke("get-basic-subscription-status", { body: {} });
+    if (error || !data || data.active !== true) throw new Error("Active Basic subscription verify नहीं हो सकी। कृपया दोबारा login करें।");
+    if (data.enforcementEnabled !== true) throw new Error("Premium entitlement enforcement अभी उपलब्ध नहीं है।");
+    basicSubscriptionActive = true;
+    const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+    if (sessionError || !sessionData?.session?.user) throw new Error("Doctor session expired. Please sign in again.");
+    return sessionData.session.user.id;
+  }
+
+  function moduleShell() {
+    return `
+      <div class="bg-slate-900 text-white rounded-2xl p-4 shadow-lg mb-3">
+        <div class="flex justify-between items-start gap-3">
+          <div><p class="text-[10px] uppercase tracking-widest text-amber-300 font-black">ClassicAI Premium Suite</p>
+          <h2 class="text-xl font-black mt-1">Clinic Workspace</h2>
+          <p class="text-xs text-slate-300 mt-1">${isPremiumDemo() ? "SAFE DEMO · fictional data only · memory-only" : "Private clinic data · doctor-only access"}</p></div>
+          <button type="button" onclick="closePremiumModules()" class="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold">Back</button>
+        </div>
+      </div>
+      ${isPremiumDemo() ? '<div class="rounded-xl border border-amber-300 bg-amber-50 text-amber-950 p-3 text-xs mb-3"><b>Safe Demo mode:</b> Test patient, inventory, billing and follow-up workflows with fictional sample data. Changes stay in this browser session only; nothing is uploaded, saved to Supabase, billed, or sent to WhatsApp/SMS.</div>' : ""}
+      <div class="grid grid-cols-3 gap-1.5 mb-3">
+        <button onclick="switchPremiumTab('overview')" class="pm-tab" data-tab="overview">Overview</button>
+        <button onclick="switchPremiumTab('patients')" class="pm-tab" data-tab="patients">Patients</button>
+        <button onclick="switchPremiumTab('inventory')" class="pm-tab" data-tab="inventory">Inventory</button>
+        <button onclick="switchPremiumTab('billing')" class="pm-tab" data-tab="billing">Billing</button>
+        <button onclick="switchPremiumTab('followups')" class="pm-tab" data-tab="followups">Follow-ups</button>
+        <button onclick="switchPremiumTab('agent')" class="pm-tab" data-tab="integrations">Integrations</button>
+      </div>
+      <div id="premiumModuleStatus" class="hidden rounded-xl border p-3 text-xs mb-3" role="status"></div>
+      <div id="premiumModulePanel" class="space-y-3"></div>
+      <p class="text-[10px] text-slate-500 leading-relaxed mt-4">Patient records are confidential clinical data. Use only with appropriate patient consent and clinic privacy safeguards. WhatsApp reminders open a prefilled message; the doctor must review and send it manually.</p>`;
+  }
+
+  function status(message, isError = false) {
+    const el = $("premiumModuleStatus");
+    if (!el) return;
+    el.textContent = message;
+    el.className = "rounded-xl border p-3 text-xs mb-3 " + (isError ? "bg-amber-50 border-amber-200 text-amber-900" : "bg-emerald-50 border-emerald-200 text-emerald-900");
+  }
+
+  function tabs() {
+    document.querySelectorAll(".pm-tab").forEach(el => {
+      const active = el.dataset.tab === premiumTab;
+      el.className = "pm-tab rounded-xl border px-2 py-2 text-[11px] font-bold " +
+        (active ? "bg-teal-800 text-white border-teal-800" : "bg-white text-slate-700 border-slate-200");
+    });
+  }
+
+  async function loadIntegrationStatuses() {
+    const { data, error } = await supabaseClient.functions.invoke("save-doctor-integration", { body: { action:"status" } });
+    if (error || !data?.success) throw new Error(data?.error || error?.message || "Could not load integration status.");
+    integrationStatuses = Object.fromEntries((data.integrations || []).map(item => [item.provider, item]));
+  }
+
+  async function loadData() {
+    if (isPremiumDemo()) {
+      integrationStatuses = {};
+      seedPremiumDemoData();
+      return;
+    }
+    const doctorId = currentDoctor.id;
+    const [patients, medicines, invoices, followups] = await Promise.all([
+      supabaseClient.from("clinic_patients").select("*").eq("doctor_id", doctorId).order("created_at", { ascending:false }).limit(250),
+      supabaseClient.from("clinic_medicines").select("*").eq("doctor_id", doctorId).order("medicine_name").limit(500),
+      supabaseClient.from("clinic_invoices").select("*").eq("doctor_id", doctorId).order("created_at", { ascending:false }).limit(250),
+      supabaseClient.from("clinic_followups").select("*, clinic_patients(full_name, phone)").eq("doctor_id", doctorId).order("due_at").limit(250)
+    ]);
+    for (const [name, result] of Object.entries({ patients, medicines, invoices, followups })) {
+      if (result.error) throw new Error(result.error.message || ("Could not load " + name));
+    }
+    premiumData = { patients:patients.data || [], medicines:medicines.data || [], invoices:invoices.data || [], followups:followups.data || [] };
+    await loadIntegrationStatuses();
+  }
+
+  function overviewView() {
+    const lowStock = premiumData.medicines.filter(x => Number(x.stock_qty) <= Number(x.reorder_level)).length;
+    const pending = premiumData.followups.filter(x => x.status === "pending").length;
+    const outstanding = premiumData.invoices.filter(x => ["unpaid","partial"].includes(x.payment_status)).reduce((n,x) => n + Number(x.total || 0), 0);
+    return `
+      <div class="grid grid-cols-2 gap-2">
+        <div class="bg-white border rounded-xl p-3"><p class="text-[10px] text-slate-500">Patients</p><p class="text-2xl font-black text-slate-900">${premiumData.patients.length}</p></div>
+        <div class="bg-white border rounded-xl p-3"><p class="text-[10px] text-slate-500">Medicines</p><p class="text-2xl font-black text-slate-900">${premiumData.medicines.length}</p></div>
+        <div class="bg-white border rounded-xl p-3"><p class="text-[10px] text-slate-500">Low-stock items</p><p class="text-2xl font-black ${lowStock ? "text-amber-700" : "text-emerald-700"}">${lowStock}</p></div>
+        <div class="bg-white border rounded-xl p-3"><p class="text-[10px] text-slate-500">Pending follow-ups</p><p class="text-2xl font-black text-slate-900">${pending}</p></div>
+      </div>
+      <div class="bg-white border rounded-xl p-3"><p class="text-xs text-slate-500">Outstanding invoices (unpaid + partial)</p><p class="text-2xl font-black text-teal-800">${money(outstanding)}</p></div>
+      <div class="bg-white border rounded-xl p-3 space-y-2"><h3 class="text-sm font-bold">Premium modules</h3>
+        <p class="text-xs text-slate-600">Patient registry, clinic stock ledger, invoice generation and a doctor-controlled WhatsApp follow-up planner are enabled in this workspace.</p>
+        <p class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">Live AI Agent and automated SMS are not connected yet. They require an approved AI/SMS provider, server-side secrets, usage limits and delivery testing.</p>
+      </div>`;
+  }
+
+  function patientsView() {
+    return `
+      <form id="pmPatientForm" class="bg-white border rounded-xl p-3 space-y-2">
+        <h3 class="font-bold text-sm">Add patient</h3>
+        <input name="full_name" required maxlength="160" placeholder="Patient full name" class="w-full border rounded-lg p-2 text-sm">
+        <div class="grid grid-cols-2 gap-2"><input name="phone" maxlength="30" placeholder="Phone / WhatsApp" class="border rounded-lg p-2 text-sm">
+        <input name="age" type="number" min="0" max="125" placeholder="Age" class="border rounded-lg p-2 text-sm"></div>
+        <select name="gender" class="w-full border rounded-lg p-2 text-sm"><option value="">Gender (optional)</option><option>Male</option><option>Female</option><option>Other</option></select>
+        <textarea name="notes" maxlength="5000" rows="2" placeholder="Clinical / administrative notes (avoid unnecessary sensitive details)" class="w-full border rounded-lg p-2 text-sm"></textarea>
+        <button class="w-full bg-teal-800 text-white rounded-lg py-2.5 text-sm font-bold">Save patient</button>
+      </form>
+      <div class="bg-white border rounded-xl p-3"><h3 class="font-bold text-sm mb-2">Patient register (${premiumData.patients.length})</h3>
+        <div class="space-y-2">${premiumData.patients.map(p => `<div class="border-b last:border-0 pb-2"><p class="font-bold text-sm">${esc(p.full_name)}</p><p class="text-[11px] text-slate-500">${esc(p.phone || "No phone")} · ${p.age == null ? "Age —" : esc(p.age + " yrs")} · ${esc(p.gender || "—")}</p><p class="text-[11px] text-slate-600 whitespace-pre-wrap">${esc(p.notes || "")}</p></div>`).join("") || '<p class="text-xs text-slate-500">No patients added yet.</p>'}</div>
+      </div>`;
+  }
+
+  function inventoryListMarkup(query = "", potency = "") {
+    const q = normalizeMedicineName(query);
+    const items = premiumData.medicines.filter(m =>
+      (!q || normalizeMedicineName(m.medicine_name).includes(q)) &&
+      (!potency || String(m.potency || "").toLowerCase() === potency.toLowerCase())
+    );
+    return items.map(m => {
+      const low = Number(m.stock_qty) <= Number(m.reorder_level);
+      return `<div class="rounded-xl border border-slate-100 bg-white px-3 py-3 flex items-center justify-between gap-3">
+        <div class="min-w-0"><p class="font-semibold text-sm text-slate-900 truncate">${esc(m.medicine_name)}</p>
+        <p class="text-xs text-teal-800 font-semibold">${esc(m.potency || "Potency not set")} · ${esc(m.dosage_form)}</p>
+        <p class="text-[10px] text-slate-500 mt-0.5">Batch ${esc(m.batch_number || "—")} · Exp ${dateLabel(m.expiry_date)}</p></div>
+        <div class="shrink-0 text-right"><p class="font-bold text-sm ${low ? "text-amber-700" : "text-slate-900"}">${esc(m.stock_qty)}</p>
+        <p class="text-[10px] text-slate-500">in stock · ${money(m.unit_price)}</p>
+        <button type="button" onclick="adjustPremiumStock('${esc(m.id)}')" class="mt-1 text-[10px] text-teal-800 underline font-semibold">Update qty</button></div>
+      </div>`;
+    }).join("") || '<p class="rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-500">No matching stock found. Try another search or add this medicine above.</p>';
+  }
+
+  function inventoryView() {
+    const potencies = [...new Set(premiumData.medicines.map(m => String(m.potency || "").trim()).filter(Boolean))].sort();
+    return `
+      <section class="rounded-2xl bg-white border border-slate-200 p-3 space-y-3">
+        <div><p class="text-[10px] font-bold uppercase tracking-wider text-teal-700">Medicine catalogue</p>
+          <h3 class="text-base font-bold text-slate-900">Add to clinic stock</h3>
+          <p class="text-[11px] text-slate-500 mt-0.5">${BASIC_MEDICINE_MASTER.length} unique names · Boericke public-domain index + ClassicAI catalogue</p></div>
+        <form id="pmMedicineForm" class="space-y-3">
+          <div class="grid grid-cols-[minmax(0,1fr)_86px_76px] gap-2 items-end">
+            <label class="min-w-0 block text-[10px] font-semibold text-slate-600">Search medicine
+              <input name="medicine_name" list="pmMedicineMasterList" required maxlength="160" placeholder="Type remedy name" class="mt-1 w-full min-w-0 border border-slate-200 rounded-xl px-2.5 py-3 text-sm focus:border-teal-600 focus:outline-none">
+            </label>
+            <label class="block text-[10px] font-semibold text-slate-600">Potency
+              <input name="potency" list="pmPotencyList" maxlength="40" placeholder="30C" class="mt-1 w-full min-w-0 border border-slate-200 rounded-xl px-2 py-3 text-sm focus:border-teal-600 focus:outline-none">
+            </label>
+            <label class="block text-[10px] font-semibold text-slate-600">Quantity
+              <input name="stock_qty" type="number" min="0" step="0.01" value="0" inputmode="decimal" class="mt-1 w-full min-w-0 border border-slate-200 rounded-xl px-2 py-3 text-sm focus:border-teal-600 focus:outline-none">
+            </label>
+          </div>
+          <datalist id="pmMedicineMasterList">${BASIC_MEDICINE_MASTER.map(name => `<option value="${esc(name)}"></option>`).join("")}</datalist>
+          <datalist id="pmPotencyList"><option value="Q"><option value="3X"><option value="6X"><option value="12X"><option value="30X"><option value="6C"><option value="30C"><option value="200C"><option value="1M"><option value="10M"></datalist>
+          <details class="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
+            <summary class="cursor-pointer text-xs font-semibold text-slate-700">Batch, expiry & pricing (optional)</summary>
+            <div class="grid grid-cols-2 gap-2 pt-3">
+              <input name="dosage_form" list="pmDosageForms" value="Globules" placeholder="Dosage form" class="border border-slate-200 rounded-lg p-2 text-xs">
+              <datalist id="pmDosageForms"><option value="Globules"><option value="Tablet"><option value="Liquid"><option value="Mother Tincture"><option value="Other"></datalist>
+              <input name="batch_number" maxlength="80" placeholder="Batch number" class="border border-slate-200 rounded-lg p-2 text-xs">
+              <input name="expiry_date" type="date" aria-label="Expiry date" class="border border-slate-200 rounded-lg p-2 text-xs">
+              <input name="reorder_level" type="number" min="0" step="0.01" value="0" placeholder="Low-stock alert at" class="border border-slate-200 rounded-lg p-2 text-xs">
+              <input name="unit_price" type="number" min="0" step="0.01" value="0" placeholder="Unit price ₹" class="border border-slate-200 rounded-lg p-2 text-xs">
+            </div>
+          </details>
+          <button class="w-full rounded-xl bg-teal-800 text-white py-3 text-sm font-bold shadow-sm">Add medicine to stock</button>
+        </form>
+      </section>
+      <section class="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 space-y-2">
+        <div class="flex items-center justify-between"><div><h3 class="text-sm font-bold text-slate-900">Clinic inventory</h3><p class="text-[10px] text-slate-500">${premiumData.medicines.length} stock items</p></div><span class="rounded-full bg-white border px-2.5 py-1 text-[10px] font-semibold text-slate-600">Search & filter</span></div>
+        <div class="grid grid-cols-[minmax(0,1fr)_112px] gap-2">
+          <input id="pmInventorySearch" type="search" oninput="filterPremiumInventory()" placeholder="Search stock by medicine..." class="w-full min-w-0 border border-slate-200 bg-white rounded-xl px-3 py-2.5 text-sm">
+          <select id="pmInventoryPotency" onchange="filterPremiumInventory()" class="w-full min-w-0 border border-slate-200 bg-white rounded-xl px-2 py-2.5 text-xs"><option value="">All potencies</option>${potencies.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join("")}</select>
+        </div>
+        <div id="pmInventoryList" class="space-y-2">${inventoryListMarkup()}</div>
+      </section>`;
+  }
+
+  window.filterPremiumInventory = function() {
+    const query = $("pmInventorySearch")?.value || "";
+    const potency = $("pmInventoryPotency")?.value || "";
+    const list = $("pmInventoryList");
+    if (list) list.innerHTML = inventoryListMarkup(query, potency);
+  };
+  function billingView() {
+    const options = premiumData.patients.map(p => `<option value="${esc(p.id)}">${esc(p.full_name)}</option>`).join("");
+    return `
+      <form id="pmInvoiceForm" class="bg-white border rounded-xl p-3 space-y-2">
+        <h3 class="font-bold text-sm">Create invoice</h3>
+        <select name="patient_id" class="w-full border rounded-lg p-2 text-sm"><option value="">Select patient (optional)</option>${options}</select>
+        <input name="patient_name" maxlength="160" placeholder="Customer name (or select patient)" class="w-full border rounded-lg p-2 text-sm">
+        <input name="description" required maxlength="180" placeholder="Service / medicine description" class="w-full border rounded-lg p-2 text-sm">
+        <div class="grid grid-cols-3 gap-2"><input name="qty" type="number" min="0.01" step="0.01" value="1" required placeholder="Qty" class="border rounded-lg p-2 text-sm"><input name="rate" type="number" min="0" step="0.01" required placeholder="Rate ₹" class="border rounded-lg p-2 text-sm"><input name="discount" type="number" min="0" step="0.01" value="0" placeholder="Discount ₹" class="border rounded-lg p-2 text-sm"></div>
+        <select name="payment_status" class="w-full border rounded-lg p-2 text-sm"><option value="unpaid">Unpaid</option><option value="paid">Paid</option></select>
+        <textarea name="notes" maxlength="1000" rows="2" placeholder="Invoice notes" class="w-full border rounded-lg p-2 text-sm"></textarea>
+        <button class="w-full bg-teal-800 text-white rounded-lg py-2.5 text-sm font-bold">Create invoice</button>
+      </form>
+      <div class="bg-white border rounded-xl p-3"><h3 class="font-bold text-sm mb-2">Invoices</h3>
+        <div class="space-y-2">${premiumData.invoices.map(i => `<div class="border-b last:border-0 pb-2 flex justify-between gap-2"><div><p class="font-bold text-sm">${esc(i.invoice_no)}</p><p class="text-[11px] text-slate-500">${esc(i.patient_name)} · ${dateLabel(i.created_at)} · ${esc(i.payment_status)}</p></div><div class="text-right"><p class="font-black">${money(i.total)}</p><button type="button" onclick="printPremiumInvoice('${esc(i.id)}')" class="text-[11px] text-teal-800 underline font-bold">Download PDF</button>${i.payment_status !== "paid" && i.payment_status !== "void" ? `<button type="button" onclick="markPremiumInvoicePaid('${esc(i.id)}')" class="block text-[11px] text-emerald-700 underline font-bold">Mark paid</button>` : ""}</div></div>`).join("") || '<p class="text-xs text-slate-500">No invoices created yet.</p>'}</div>
+      </div>
+      <div id="premiumInvoicePrint" class="hidden"></div>`;
+  }
+
+  function followupsView() {
+    const options = premiumData.patients.map(p => `<option value="${esc(p.id)}">${esc(p.full_name)} · ${esc(p.phone || "no phone")}</option>`).join("");
+    return `
+      <form id="pmFollowupForm" class="bg-white border rounded-xl p-3 space-y-2">
+        <h3 class="font-bold text-sm">Schedule follow-up</h3>
+        <select name="patient_id" required class="w-full border rounded-lg p-2 text-sm"><option value="">Select patient</option>${options}</select>
+        <input name="due_at" type="datetime-local" required class="w-full border rounded-lg p-2 text-sm">
+        <textarea name="message" required maxlength="2000" rows="3" class="w-full border rounded-lg p-2 text-sm" placeholder="Reminder message for doctor to review and send"></textarea>
+        <button class="w-full bg-teal-800 text-white rounded-lg py-2.5 text-sm font-bold">Save follow-up</button>
+      </form>
+      <div class="bg-white border rounded-xl p-3"><h3 class="font-bold text-sm mb-2">Follow-up planner</h3>
+        <div class="space-y-2">${premiumData.followups.map(f => { const p = f.clinic_patients || {}; return `<div class="border-b last:border-0 pb-2"><div class="flex justify-between gap-2"><p class="font-bold text-sm">${esc(p.full_name || "Patient")}</p><span class="text-[10px] uppercase font-bold ${f.status === "pending" ? "text-amber-700" : "text-slate-500"}">${esc(f.status)}</span></div><p class="text-[11px] text-slate-500">${dateLabel(f.due_at)} · ${esc(p.phone || "No phone")}</p><p class="text-xs my-1">${esc(f.message)}</p><div class="flex gap-3"><button type="button" onclick="sendPremiumWhatsApp('${esc(f.id)}')" class="text-xs text-emerald-700 underline font-bold">Open WhatsApp</button>${f.status === "pending" ? `<button type="button" onclick="completePremiumFollowup('${esc(f.id)}')" class="text-xs text-teal-800 underline font-bold">Mark done</button>` : ""}</div></div>`; }).join("") || '<p class="text-xs text-slate-500">No follow-ups scheduled.</p>'}</div>
+      </div>`;
+  }
+
+  function integrationsView() {
+    const pill = (provider) => integrationStatuses[provider]?.configured
+      ? '<span class="text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-800 px-2 py-1">Credentials saved securely</span>'
+      : '<span class="text-[10px] font-bold rounded-full bg-amber-100 text-amber-900 px-2 py-1">Not configured</span>';
+    return [
+      '<div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950"><b>Integration settings:</b> Credentials are stored encrypted in Supabase Vault. Saving credentials does not yet activate outbound AI, SMS or WhatsApp sending; provider testing and message workflows are separate release steps.</div>',
+      '<form id="pmAiIntegrationForm" class="bg-white border rounded-xl p-3 space-y-2"><div class="flex justify-between items-center"><h3 class="font-bold text-sm">Live AI Agent</h3>' + pill("ai") + '</div><label>API endpoint (OpenAI-compatible)</label><input name="base_url" type="url" required value="https://api.openai.com/v1" class="w-full border rounded-lg p-2 text-sm"><label>Model name</label><input name="model" required value="gpt-4.1-mini" class="w-full border rounded-lg p-2 text-sm"><label>API key</label><input name="api_key" type="password" autocomplete="new-password" required placeholder="Paste AI API key" class="w-full border rounded-lg p-2 text-sm"><button class="w-full bg-violet-700 text-white rounded-lg py-2.5 text-sm font-bold">Save AI credentials securely</button></form>',
+      '<form id="pmSmsIntegrationForm" class="bg-white border rounded-xl p-3 space-y-2"><div class="flex justify-between items-center"><h3 class="font-bold text-sm">SMS Gateway · Twilio</h3>' + pill("sms") + '</div><label>Account SID</label><input name="account_sid" required placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" class="w-full border rounded-lg p-2 text-sm"><label>Auth Token</label><input name="auth_token" type="password" autocomplete="new-password" required placeholder="Twilio Auth Token" class="w-full border rounded-lg p-2 text-sm"><label>Sender number (E.164)</label><input name="from_number" required placeholder="+1xxxxxxxxxx" class="w-full border rounded-lg p-2 text-sm"><button class="w-full bg-sky-700 text-white rounded-lg py-2.5 text-sm font-bold">Save SMS credentials securely</button></form>',
+      '<form id="pmWhatsAppIntegrationForm" class="bg-white border rounded-xl p-3 space-y-2"><div class="flex justify-between items-center"><h3 class="font-bold text-sm">WhatsApp Business Cloud API</h3>' + pill("whatsapp") + '</div><label>Phone Number ID</label><input name="phone_number_id" required placeholder="Meta Phone Number ID" class="w-full border rounded-lg p-2 text-sm"><label>WhatsApp Business Account ID</label><input name="waba_id" required placeholder="WABA ID" class="w-full border rounded-lg p-2 text-sm"><label>System User Access Token</label><input name="access_token" type="password" autocomplete="new-password" required placeholder="Meta Graph API access token" class="w-full border rounded-lg p-2 text-sm"><label>Webhook Verify Token (optional)</label><input name="verify_token" type="password" autocomplete="new-password" placeholder="Custom verify token" class="w-full border rounded-lg p-2 text-sm"><label>Graph API version</label><input name="graph_version" value="v23.0" class="w-full border rounded-lg p-2 text-sm"><button class="w-full bg-emerald-700 text-white rounded-lg py-2.5 text-sm font-bold">Save WhatsApp API securely</button></form>',
+      '<div class="rounded-xl border bg-slate-50 p-3 text-[11px] text-slate-700"><b>Important:</b> Use official credentials only. Respect WhatsApp opt-in and approved templates. Never paste a Supabase service-role key here.</div>'
+    ].join("");
+  }
+
+  function render() {
+    const panel = $("premiumModulePanel");
+    if (!panel) return;
+    tabs();
+    const views = { overview:overviewView, patients:patientsView, inventory:inventoryView, billing:billingView, followups:followupsView, integrations:integrationsView };
+    panel.innerHTML = views[premiumTab]();
+    bindForms();
+  }
+
+  async function reloadAndRender(message) {
+    try { await loadData(); render(); if (message) status(message); }
+    catch (error) { status(error.message || "Could not refresh module data.", true); }
+  }
+
+  function bindForms() {
+    const saveIntegration = (formId, provider, configBuilder, secretBuilder, successText) => {
+      $(formId)?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        try {
+          if (isPremiumDemo()) throw new Error("Safe Demo cannot save real API credentials. Sign in to an approved doctor account.");
+          await verifyIntegrationAccess();
+          const values = new FormData(event.currentTarget);
+          const { data, error } = await supabaseClient.functions.invoke("save-doctor-integration", {
+            body: { provider, config:configBuilder(values), secret:JSON.stringify(secretBuilder(values)) }
+          });
+          if (error || !data?.success) throw new Error(data?.error || error?.message || "Could not save integration credentials.");
+          await loadData();
+          render();
+          status(successText + " Credentials are encrypted in server-side Vault storage.");
+        } catch (error) { status(error.message || "Integration settings could not be saved.", true); }
+      });
+    };
+    saveIntegration("pmAiIntegrationForm","ai",
+      f => ({base_url:String(f.get("base_url")).trim(),model:String(f.get("model")).trim()}),
+      f => ({api_key:String(f.get("api_key") || "").trim()}),
+      "AI provider settings saved.");
+    saveIntegration("pmSmsIntegrationForm","sms",
+      f => ({account_sid:String(f.get("account_sid")).trim(),from_number:String(f.get("from_number")).trim(),provider:"twilio"}),
+      f => ({auth_token:String(f.get("auth_token") || "").trim()}),
+      "SMS gateway settings saved.");
+    saveIntegration("pmWhatsAppIntegrationForm","whatsapp",
+      f => ({phone_number_id:String(f.get("phone_number_id")).trim(),waba_id:String(f.get("waba_id")).trim(),graph_version:String(f.get("graph_version") || "v23.0").trim(),provider:"meta-cloud-api"}),
+      f => ({access_token:String(f.get("access_token") || "").trim(),verify_token:String(f.get("verify_token") || "").trim()}),
+      "WhatsApp Cloud API settings saved.");
+    $("pmPatientForm")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const uid = await verifyPremiumAccess(), f = new FormData(event.currentTarget);
+        const payload = { doctor_id:currentDoctor.id, auth_user_id:uid, full_name:String(f.get("full_name")).trim(), phone:String(f.get("phone") || "").trim() || null, age:f.get("age") ? Number(f.get("age")) : null, gender:String(f.get("gender") || "") || null, notes:String(f.get("notes") || "").trim() || null };
+        if (isPremiumDemo()) {
+          premiumData.patients.unshift({ ...payload, id:"demo-" + crypto.randomUUID(), created_at:new Date().toISOString() });
+          await reloadAndRender("Demo patient added locally. No cloud data was changed.");
+          return;
+        }
+        const { error } = await supabaseClient.from("clinic_patients").insert(payload);
+        if (error) throw error;
+        await reloadAndRender("Patient record saved securely.");
+      } catch (error) { status(error.message || "Patient save failed.", true); }
+    });
+    $("pmMedicineForm")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const uid = await verifyPremiumAccess(), f = new FormData(event.currentTarget);
+        const payload = { doctor_id:currentDoctor.id, auth_user_id:uid, medicine_name:String(f.get("medicine_name")).trim(), potency:String(f.get("potency") || "").trim(), dosage_form:String(f.get("dosage_form") || "Other"), batch_number:String(f.get("batch_number") || "").trim() || null, expiry_date:String(f.get("expiry_date") || "") || null, stock_qty:Number(f.get("stock_qty") || 0), reorder_level:Number(f.get("reorder_level") || 0), unit_price:Number(f.get("unit_price") || 0) };
+        if (![payload.stock_qty,payload.reorder_level,payload.unit_price].every(Number.isFinite)) throw new Error("Enter valid stock and price values.");
+        if (isPremiumDemo()) {
+          premiumData.medicines.unshift({ ...payload, id:"demo-" + crypto.randomUUID() });
+          await reloadAndRender("Demo inventory item added locally. No cloud data was changed.");
+          return;
+        }
+        const { error } = await supabaseClient.from("clinic_medicines").insert(payload);
+        if (error) throw error;
+        await reloadAndRender("Inventory item saved.");
+      } catch (error) { status(error.message || "Inventory save failed.", true); }
+    });
+    $("pmInvoiceForm")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const uid = await verifyPremiumAccess(), f = new FormData(event.currentTarget);
+        const qty = Number(f.get("qty")), rate = Number(f.get("rate")), discount = Number(f.get("discount") || 0);
+        if (!(qty > 0) || !(rate >= 0) || !(discount >= 0)) throw new Error("Enter valid quantity, rate and discount.");
+        const subtotal = Math.round(qty * rate * 100) / 100, total = Math.max(0, Math.round((subtotal - discount) * 100) / 100);
+        const patientId = String(f.get("patient_id") || "") || null;
+        const selectedPatient = premiumData.patients.find(p => p.id === patientId);
+        const patientName = String(f.get("patient_name") || "").trim() || selectedPatient?.full_name;
+        if (!patientName) throw new Error("Enter a patient / customer name.");
+        const invoiceNo = "CA-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + crypto.randomUUID().slice(0,6).toUpperCase();
+        const description = String(f.get("description") || "").trim();
+        if (!description) throw new Error("Enter an invoice description.");
+        const payload = { doctor_id:currentDoctor.id, auth_user_id:uid, patient_id:patientId, patient_name:patientName, invoice_no:invoiceNo, line_items:[{description,quantity:qty,rate,amount:subtotal}], subtotal, discount, total, payment_status:String(f.get("payment_status") || "unpaid"), notes:String(f.get("notes") || "").trim() || null };
+        if (isPremiumDemo()) {
+          premiumData.invoices.unshift({ ...payload, id:"demo-" + crypto.randomUUID(), created_at:new Date().toISOString() });
+          await reloadAndRender("Demo invoice created locally. You can test PDF export; no cloud record or payment was created.");
+          return;
+        }
+        const { error } = await supabaseClient.from("clinic_invoices").insert(payload);
+        if (error) throw error;
+        await reloadAndRender("Invoice created. Select Download PDF to print or save it.");
+      } catch (error) { status(error.message || "Invoice creation failed.", true); }
+    });
+    $("pmFollowupForm")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const uid = await verifyPremiumAccess(), f = new FormData(event.currentTarget);
+        const due = new Date(String(f.get("due_at")));
+        if (Number.isNaN(due.getTime())) throw new Error("Enter a valid follow-up date and time.");
+        const payload = { doctor_id:currentDoctor.id, auth_user_id:uid, patient_id:String(f.get("patient_id")), due_at:due.toISOString(), message:String(f.get("message")).trim(), channel:"whatsapp" };
+        if (isPremiumDemo()) {
+          const patient = premiumData.patients.find(p => p.id === payload.patient_id);
+          premiumData.followups.unshift({ ...payload, id:"demo-" + crypto.randomUUID(), status:"pending", clinic_patients:patient ? {full_name:patient.full_name,phone:patient.phone} : {} });
+          await reloadAndRender("Demo follow-up saved locally. No reminder was sent.");
+          return;
+        }
+        const { error } = await supabaseClient.from("clinic_followups").insert(payload);
+        if (error) throw error;
+        await reloadAndRender("Follow-up saved.");
+      } catch (error) { status(error.message || "Follow-up save failed.", true); }
+    });
+  }
+
+  window.switchPremiumTab = async function(tab) {
+    if (!["overview","patients","inventory","billing","followups","agent"].includes(tab)) return;
+    premiumTab = tab;
+    try { await verifyPremiumAccess(); render(); }
+    catch (error) { status(error.message || "Premium access unavailable.", true); }
+  };
+
+  window.openPremiumModules = async function() {
+    const root = $("premiumModulesRoot");
+    if (!root) return;
+    try {
+      await verifyPremiumAccess();
+      root.classList.remove("hidden");
+      for (let i=1;i<=8;i++) $("stepView"+i)?.classList.add("hidden");
+      $("bottomNavBar")?.classList.add("hidden");
+      root.innerHTML = moduleShell();
+      await reloadAndRender();
+      window.scrollTo({top:0,behavior:"smooth"});
+    } catch (error) {
+      alert(error.message || "Premium modules require an active Basic subscription.");
+    }
+  };
+
+  window.openIntegrationSettings = async function() {
+    try {
+      await verifyIntegrationAccess();
+      const root = $("premiumModulesRoot");
+      if (!root) throw new Error("Integration settings panel is unavailable.");
+      root.classList.remove("hidden");
+      for (let i=1;i<=8;i++) $("stepView"+i)?.classList.add("hidden");
+      $("bottomNavBar")?.classList.add("hidden");
+      root.innerHTML = '<div class="bg-slate-900 text-white rounded-2xl p-4 shadow-lg mb-3"><div class="flex justify-between items-center gap-3"><div><p class="text-[10px] uppercase tracking-widest text-amber-300 font-black">ClassicAI · Settings</p><h2 class="text-xl font-black mt-1">API Integrations</h2><p class="text-xs text-slate-300 mt-1">Configure AI, SMS and WhatsApp providers</p></div><button type="button" onclick="closePremiumModules()" class="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold">Back</button></div></div><div id="premiumModuleStatus" class="hidden rounded-xl border p-3 text-xs mb-3" role="status"></div><div id="premiumModulePanel" class="space-y-3"></div>';
+      await loadIntegrationStatuses();
+      premiumTab = "integrations";
+      render();
+      window.scrollTo({top:0,behavior:"smooth"});
+    } catch (error) { alert(error.message || "Could not open integration settings."); }
+  };
+
+  window.closePremiumModules = function() {
+    $("premiumModulesRoot")?.classList.add("hidden");
+    $("bottomNavBar")?.classList.remove("hidden");
+    if (typeof goToStep === "function") goToStep(currentStep || 1);
+  };
+
+  window.adjustPremiumStock = async function(id) {
+    try {
+      await verifyPremiumAccess();
+      const item = premiumData.medicines.find(x => x.id === id);
+      if (!item) throw new Error("Inventory item not found.");
+      const value = window.prompt("Enter the new physical stock quantity:", String(item.stock_qty));
+      if (value === null) return;
+      const quantity = Number(value);
+      if (!Number.isFinite(quantity) || quantity < 0) throw new Error("Stock must be a non-negative number.");
+      if (isPremiumDemo()) {
+        item.stock_qty = quantity;
+        render();
+        status("Demo stock quantity updated locally.");
+        return;
+      }
+      const { error } = await supabaseClient.from("clinic_medicines").update({stock_qty:quantity,updated_at:new Date().toISOString()}).eq("id",id).eq("doctor_id",currentDoctor.id);
+      if (error) throw error;
+      await reloadAndRender("Stock quantity updated.");
+    } catch (error) { status(error.message || "Stock update failed.", true); }
+  };
+
+  window.markPremiumInvoicePaid = async function(id) {
+    try {
+      await verifyPremiumAccess();
+      if (isPremiumDemo()) {
+        const invoice = premiumData.invoices.find(x => x.id === id);
+        if (!invoice) throw new Error("Invoice not found.");
+        invoice.payment_status = "paid";
+        render();
+        status("Demo invoice marked paid locally. No payment was processed.");
+        return;
+      }
+      const { error } = await supabaseClient.from("clinic_invoices").update({payment_status:"paid",updated_at:new Date().toISOString()}).eq("id",id).eq("doctor_id",currentDoctor.id);
+      if (error) throw error;
+      await reloadAndRender("Invoice marked as paid.");
+    } catch (error) { status(error.message || "Invoice update failed.", true); }
+  };
+
+  window.completePremiumFollowup = async function(id) {
+    try {
+      await verifyPremiumAccess();
+      if (isPremiumDemo()) {
+        const followup = premiumData.followups.find(x => x.id === id);
+        if (!followup) throw new Error("Follow-up not found.");
+        followup.status = "completed";
+        render();
+        status("Demo follow-up marked complete locally. No message was sent.");
+        return;
+      }
+      const { error } = await supabaseClient.from("clinic_followups").update({status:"completed",updated_at:new Date().toISOString()}).eq("id",id).eq("doctor_id",currentDoctor.id);
+      if (error) throw error;
+      await reloadAndRender("Follow-up marked complete.");
+    } catch (error) { status(error.message || "Could not update follow-up.", true); }
+  };
+
+  window.sendPremiumWhatsApp = async function(id) {
+    try {
+      await verifyPremiumAccess();
+      const f = premiumData.followups.find(x => x.id === id);
+      if (!f) throw new Error("Follow-up not found.");
+      if (isPremiumDemo()) {
+        status("Demo only: WhatsApp sending is disabled. This sample message has not been sent.");
+        return;
+      }
+      const patient = f.clinic_patients || {};
+      let phone = String(patient.phone || "").replace(/\D/g,"");
+      if (phone.length === 10) phone = "91" + phone;
+      if (!phone) throw new Error("Patient phone number is missing.");
+      const msg = f.message + "\n\n" + (currentDoctor.clinic_name || "ClassicAI Clinic") + "\n" + (currentDoctor.doctor_name || "Doctor");
+      window.open("https://wa.me/" + phone + "?text=" + encodeURIComponent(msg), "_blank", "noopener");
+    } catch (error) { status(error.message || "WhatsApp could not be opened.", true); }
+  };
+
+  window.printPremiumInvoice = async function(id) {
+    try {
+      await verifyPremiumAccess();
+      const inv = premiumData.invoices.find(x => x.id === id);
+      if (!inv) throw new Error("Invoice not found.");
+      const rows = (Array.isArray(inv.line_items) ? inv.line_items : []).map(item => `<tr><td style="padding:8px;border:1px solid #ddd">${esc(item.description)}</td><td style="padding:8px;border:1px solid #ddd;text-align:right">${esc(item.quantity)}</td><td style="padding:8px;border:1px solid #ddd;text-align:right">${money(item.rate)}</td><td style="padding:8px;border:1px solid #ddd;text-align:right">${money(item.amount)}</td></tr>`).join("");
+      const el = document.createElement("div");
+      el.style.cssText = "position:fixed;left:-10000px;top:0;width:760px;background:white;color:#111;padding:32px;font:14px Arial";
+      el.innerHTML = `<h1 style="font-size:24px;color:#115e59">${esc(currentDoctor.clinic_name || "ClassicAI Clinic")}</h1><p>${esc(currentDoctor.doctor_name || "Doctor")} · ${esc(currentDoctor.reg_no || "")}</p><hr><h2>Invoice ${esc(inv.invoice_no)}</h2><p>Patient: <b>${esc(inv.patient_name)}</b></p><p>Date: ${dateLabel(inv.created_at)}</p><table style="width:100%;border-collapse:collapse;margin-top:18px"><thead><tr><th style="text-align:left;padding:8px;border:1px solid #ddd">Description</th><th style="padding:8px;border:1px solid #ddd">Qty</th><th style="padding:8px;border:1px solid #ddd">Rate</th><th style="padding:8px;border:1px solid #ddd">Amount</th></tr></thead><tbody>${rows}</tbody></table><div style="text-align:right;margin-top:18px"><p>Subtotal: ${money(inv.subtotal)}</p><p>Discount: ${money(inv.discount)}</p><h2>Total: ${money(inv.total)}</h2><p>Status: ${esc(inv.payment_status)}</p></div><p style="margin-top:28px;font-size:11px">Generated by ClassicAI · This invoice is a clinic billing record, not a tax invoice unless applicable tax details are added.</p>`;
+      document.body.appendChild(el);
+      try {
+        if (typeof html2pdf !== "function") throw new Error("PDF engine is unavailable. Check internet and retry.");
+        await html2pdf().set({margin:8,filename:inv.invoice_no+".pdf",image:{type:"jpeg",quality:0.96},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}}).from(el).save();
+      } finally { el.remove(); }
+    } catch (error) { status(error.message || "Invoice PDF could not be generated.", true); }
+  };
+
+  window.addEventListener("DOMContentLoaded", () => {
+    const host = $("premiumModulesRoot");
+    if (!host) return;
+    host.classList.add("hidden");
+    $("stepBtn8")?.parentElement?.insertAdjacentHTML("beforeend", '<button type="button" onclick="openIntegrationSettings()" class="px-2.5 py-1 rounded bg-violet-700 text-white font-black shadow">API Integrations</button><button type="button" onclick="openPremiumModules()" class="px-2.5 py-1 rounded bg-amber-400 text-slate-950 font-black shadow">Premium Suite</button>');
+  });
+})();

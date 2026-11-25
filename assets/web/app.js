@@ -92,6 +92,30 @@
       }
     ];
 
+    // Expand the candidate pool with the full 175-entry medicine catalogue.
+    // Catalogue-only entries are retained for completeness but are never given invented symptom grades.
+    const remedyNameKey = (name) => String(name || "").toLowerCase().replace(/\([^)]*\)/g, "").replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+    const detailedRemedyKeys = new Set(materiaMedicaRepo.map(m => remedyNameKey(m.name)));
+    const remedyAliases = { "lachesis mutus":"lachesis muta", "actaea racemosa":"cimicifuga", "china officinalis":"cinchona" };
+    const allCatalogueNames = [...(Array.isArray(window.CLASSICAI_REPERTORY_CATALOG) ? window.CLASSICAI_REPERTORY_CATALOG : []), ...(Array.isArray(window.CLASSICAI_BOERICKE_1927_REMEDIES) ? window.CLASSICAI_BOERICKE_1927_REMEDIES : [])];
+    const boerickeRemedyKeys = new Set((Array.isArray(window.CLASSICAI_BOERICKE_1927_REMEDIES) ? window.CLASSICAI_BOERICKE_1927_REMEDIES : []).map(remedyNameKey));
+    allCatalogueNames.forEach((name) => {
+      const key = remedyAliases[remedyNameKey(name)] || remedyNameKey(name);
+      if (!key || detailedRemedyKeys.has(key)) return;
+      detailedRemedyKeys.add(key);
+      materiaMedicaRepo.push({
+        name,
+        thermal: "Not indexed",
+        miasm: "Not indexed",
+        vesAffinity: "Not indexed in loaded public-domain profile data",
+        gnmMatches: [],
+        keywords: [],
+        keySymptoms: [],
+        shortNote: "Catalogue entry only. No verified symptom-to-remedy rubric mapping is loaded for this remedy.",
+        catalogOnly: true,
+        dataSource: boerickeRemedyKeys.has(key) ? "Boericke 1927 public-domain remedy-name index; name only, no rubric profile imported" : "ClassicAI pre-existing remedy catalogue; name only, no verified rubric profile imported"
+      });
+    });
 
     // Safely update optional UI elements so missing hidden/modal elements cannot crash the app.
     function setText(id, value) {
@@ -101,7 +125,7 @@
 
     let currentDoctor = null;
     let demoMode = false;
-    let sessionCases = []; // Patient data remains in memory only until secure cloud storage is ready.
+    let sessionCases = []; // Cache of the authenticated doctor's cloud archive for the active session.
     let currentStep = 1;
     let selectedRubricsList = [];
     let latestTop5Remedies = [];
@@ -586,13 +610,13 @@
       }
 
       const scoredList = materiaMedicaRepo.map(med => {
-        let score = 10;
+        let score = med.catalogOnly ? 0 : 10;
         let matchedSymptoms = [];
 
-        if (vesLevel === "Group_A" && (med.name === "Arsenicum Album" || med.name === "Nux Vomica")) score += 4;
-        if (vesLevel === "Group_C" && (med.name === "Thuja Occidentalis" || med.name === "Lycopodium Clavatum")) score += 5;
+        if (!med.catalogOnly && vesLevel === "Group_A" && (med.name === "Arsenicum Album" || med.name === "Nux Vomica")) score += 4;
+        if (!med.catalogOnly && vesLevel === "Group_C" && (med.name === "Thuja Occidentalis" || med.name === "Lycopodium Clavatum")) score += 5;
 
-        if (med.thermal.toLowerCase().includes(patientThermal.toLowerCase().substring(0, 3))) {
+        if (!med.catalogOnly && med.thermal.toLowerCase().includes(patientThermal.toLowerCase().substring(0, 3))) {
           score += 8;
           matchedSymptoms.push("Thermal Affinity (" + patientThermal.split(' ')[0] + ")");
         }
@@ -630,8 +654,11 @@
         }
 
         if (matchedSymptoms.length === 0) {
-          matchedSymptoms.push("General Constitutional Similitude", "Synthesis Rubric Overlap");
-          score += 4;
+          if (med.catalogOnly) {
+            matchedSymptoms.push("No verified rubric mapping loaded — not scored");
+          } else {
+            matchedSymptoms.push("No specific rubric match in current profile");
+          }
         }
 
         return {
@@ -682,6 +709,19 @@
         `;
         container.appendChild(card);
       });
+
+      const fullRanking = document.getElementById("repertoryFullRanking");
+      if (fullRanking) {
+        const ranked = [...scoredList].sort((a,b) => {
+          if (Boolean(a.catalogOnly) !== Boolean(b.catalogOnly)) return a.catalogOnly ? 1 : -1;
+          return b.finalScore - a.finalScore || a.name.localeCompare(b.name);
+        });
+        fullRanking.innerHTML = ranked.map((r, idx) => `
+          <div class="flex items-center justify-between gap-2 border-b border-slate-100 py-1.5 text-[10px]">
+            <span class="min-w-0"><b class="text-slate-500 mr-1">${idx + 1}.</b><span class="font-semibold text-slate-800">${escapeHTML(r.name)}</span></span>
+            <span class="shrink-0 ${r.catalogOnly ? 'text-slate-400' : 'text-teal-800 font-bold'}">${r.catalogOnly ? 'Catalogue only · unscored' : 'Score ' + r.finalScore}</span>
+          </div>`).join("");
+      }
 
       // The local calculation is complete. Charge one token server-side before exposing
       // the completed result. The backend derives doctor identity from the verified JWT.
@@ -744,7 +784,7 @@
     }
 
     // AUTOSAVE & CASE ARCHIVING
-    function saveCurrentCaseRecord() {
+    async function saveCurrentCaseRecord() {
       if (demoMode) {
         alert("डेमो मोड में मरीज के केस सेव नहीं होते। कृपया केवल काल्पनिक डेटा इस्तेमाल करें।");
         return false;
@@ -794,16 +834,28 @@
         saved_at: new Date().toLocaleDateString('hi-IN') + ' ' + new Date().toLocaleTimeString('hi-IN', { hour: '2-digit', minute: '2-digit' })
       };
 
-      // Patient data is sensitive health information. Keep it only in memory until secure per-doctor cloud storage is ready.
-      sessionCases.unshift(caseData);
-      return true;
+      try {
+        const { data: authData, error: authError } = await supabaseClient.auth.getUser();
+        if (authError || !authData?.user) throw new Error("Authentication required");
+        delete caseData.id;
+        delete caseData.saved_at;
+        caseData.doctor_user_id = authData.user.id;
+        const { data, error } = await supabaseClient.from("patient_cases").insert(caseData).select("*").single();
+        if (error) throw error;
+        sessionCases.unshift({ ...data, id:Number(data.id), saved_at:data.created_at ? new Date(data.created_at).toLocaleString("hi-IN") : "" });
+        return true;
+      } catch (error) {
+        console.error("Patient case save failed:", error);
+        alert("केस क्लाउड में सेव नहीं हुआ। आपका फॉर्म सुरक्षित रखा गया है। लॉगिन/इंटरनेट जाँचकर फिर प्रयास करें।");
+        return false;
+      }
     }
 
-    function finishCaseTaking() {
-      const savedToSession = saveCurrentCaseRecord();
+    async function finishCaseTaking() {
+      const savedToSession = await saveCurrentCaseRecord();
       if (!demoMode && !savedToSession) return;
       if (savedToSession) {
-        alert("यह केस केवल इस सक्रिय सत्र में अस्थायी रूप से रखा गया है। लॉगआउट या पेज रीफ्रेश करने पर यह मिट जाएगा। स्थायी क्लाउड सेविंग अभी उपलब्ध नहीं है।");
+        alert("केस आपके डॉक्टर खाते में सुरक्षित रूप से क्लाउड पर सेव हो गया है।");
       }
 
       document.getElementById("pName").value = "";
@@ -832,23 +884,32 @@
     }
 
     // HISTORY DIALOG CONTROLS
-    function openHistoryModal() {
+    async function openHistoryModal() {
       document.getElementById("historyModal").classList.remove("hidden");
-      renderCasesHistoryList();
+      await renderCasesHistoryList();
     }
 
     function closeHistoryModal() {
       document.getElementById("historyModal").classList.add("hidden");
     }
 
-    function renderCasesHistoryList(filterQuery = "") {
+    async function renderCasesHistoryList(filterQuery = "") {
       const container = document.getElementById("historyListContainer");
       if (!container) return;
 
       let cases = [];
       try {
+        const { data: authData, error: authError } = await supabaseClient.auth.getUser();
+        if (authError || !authData?.user || demoMode) throw new Error("Authentication required");
+        const { data, error } = await supabaseClient.from("patient_cases").select("*").order("created_at", { ascending:false });
+        if (error) throw error;
+        sessionCases = (data || []).map(row => ({ ...row, id:Number(row.id), patient_age:row.patient_age || "--", patient_gender:row.patient_gender || "—", saved_at:row.created_at ? new Date(row.created_at).toLocaleString("hi-IN") : "" }));
         cases = [...sessionCases];
-      } catch (e) { cases = []; }
+      } catch (error) {
+        console.error("Patient case history load failed:", error);
+        container.innerHTML = '<div class="text-center py-8 text-rose-600 text-xs">केस लोड नहीं हुए। लॉगिन और इंटरनेट कनेक्शन जाँचें।</div>';
+        return;
+      }
 
       if (filterQuery) {
         const q = filterQuery.toLowerCase();
@@ -901,9 +962,9 @@
       });
     }
 
-    function filterCasesHistory() {
+    async function filterCasesHistory() {
       const q = document.getElementById("historySearchInput").value.trim();
-      renderCasesHistoryList(q);
+      await renderCasesHistoryList(q);
     }
 
     function loadCaseIntoWorkspace(caseId) {
@@ -949,12 +1010,17 @@
       goToStep(1);
     }
 
-    function deleteHistoryCase(caseId) {
-      if (!confirm("क्या आप इस केस हिस्ट्री को हटाना चाहते हैं?")) return;
-      let cases = [...sessionCases];
-      cases = cases.filter(c => c.id !== caseId);
-      sessionCases = cases;
-      renderCasesHistoryList(document.getElementById("historySearchInput").value.trim());
+    async function deleteHistoryCase(caseId) {
+      if (!confirm("क्या आप इस केस हिस्ट्री को स्थायी रूप से हटाना चाहते हैं?")) return;
+      try {
+        const { data, error } = await supabaseClient.from("patient_cases").delete().eq("id", caseId).select("id").maybeSingle();
+        if (error || !data) throw error || new Error("Case not found or access denied");
+        sessionCases = sessionCases.filter(c => c.id !== Number(caseId));
+        await renderCasesHistoryList(document.getElementById("historySearchInput").value.trim());
+      } catch (error) {
+        console.error("Patient case delete failed:", error);
+        alert("केस हटाया नहीं जा सका। कृपया दोबारा प्रयास करें।");
+      }
     }
 
     function shareHistoryCaseWA(caseId) {

@@ -1,16 +1,18 @@
 name: classicai
-description: ClassicalAI Android app wrapping the supplied HTML interface.
+description: ClassicAI Android and Windows desktop applications.
 publish_to: 'none'
 version: 0.1.1+2
 
 environment:
-  sdk: '>=3.4.0 <4.0.0'
+  sdk: '>=3.12.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
   webview_flutter: ^4.10.0
+  webview_flutter_windows: ^1.3.1
+  window_manager: ^0.4.3
 
 dev_dependencies:
   flutter_test:
@@ -23,4 +25,8 @@ flutter:
     - assets/web/index.html
     - assets/web/app.js
     - assets/web/supabase-config.js
+    - assets/web/repertory-catalog.js
+    - assets/web/boericke-1927-remedy-index.js
+    - assets/web/clinical-enhancements.js
+    - assets/web/premium-modules.js
     - admin-app/ClassicalAIAdmin-secure.html
