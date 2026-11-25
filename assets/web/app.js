@@ -97,7 +97,9 @@
     const remedyNameKey = (name) => String(name || "").toLowerCase().replace(/\([^)]*\)/g, "").replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
     const detailedRemedyKeys = new Set(materiaMedicaRepo.map(m => remedyNameKey(m.name)));
     const remedyAliases = { "lachesis mutus":"lachesis muta", "actaea racemosa":"cimicifuga", "china officinalis":"cinchona" };
-    (Array.isArray(window.CLASSICAI_REPERTORY_CATALOG) ? window.CLASSICAI_REPERTORY_CATALOG : []).forEach((name) => {
+    const allCatalogueNames = [...(Array.isArray(window.CLASSICAI_REPERTORY_CATALOG) ? window.CLASSICAI_REPERTORY_CATALOG : []), ...(Array.isArray(window.CLASSICAI_BOERICKE_1927_REMEDIES) ? window.CLASSICAI_BOERICKE_1927_REMEDIES : [])];
+    const boerickeRemedyKeys = new Set((Array.isArray(window.CLASSICAI_BOERICKE_1927_REMEDIES) ? window.CLASSICAI_BOERICKE_1927_REMEDIES : []).map(remedyNameKey));
+    allCatalogueNames.forEach((name) => {
       const key = remedyAliases[remedyNameKey(name)] || remedyNameKey(name);
       if (!key || detailedRemedyKeys.has(key)) return;
       detailedRemedyKeys.add(key);
@@ -111,7 +113,7 @@
         keySymptoms: [],
         shortNote: "Catalogue entry only. No verified symptom-to-remedy rubric mapping is loaded for this remedy.",
         catalogOnly: true,
-        dataSource: "ClassicAI 175-remedy catalogue index; see public-domain references in repertory-catalog.js"
+        dataSource: boerickeRemedyKeys.has(key) ? "Boericke 1927 public-domain remedy-name index; name only, no rubric profile imported" : "ClassicAI pre-existing remedy catalogue; name only, no verified rubric profile imported"
       });
     });
 
