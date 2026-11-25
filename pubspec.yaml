@@ -25,4 +25,8 @@ flutter:
     - assets/web/index.html
     - assets/web/app.js
     - assets/web/supabase-config.js
+    - assets/web/repertory-catalog.js
+    - assets/web/boericke-1927-remedy-index.js
+    - assets/web/clinical-enhancements.js
+    - assets/web/premium-modules.js
     - admin-app/ClassicalAIAdmin-secure.html
