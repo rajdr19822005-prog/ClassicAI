@@ -75,3 +75,22 @@ No signed AAB has been generated and no Play Console upload has been performed.
 - After successful end-to-end verification, enable entitlement enforcement with: update public.basic_subscription_config set enforcement_enabled = true, updated_at = now() where id = 1;
 - Enabling the gate blocks new repertorization for accounts without an active Basic subscription. Existing token balances remain stored and are not deleted.
 - The current repertorisation engine is still a local heuristic ranking tool, not a generative AI model. Do not advertise it as a model-backed AI service until one is integrated and tested.
+
+## AI repertorisation engine (mobile rollout)
+
+The mobile repertorisation action now calls the authenticated `ai-repertorize` Supabase Edge Function. The function verifies the Supabase user and active linked doctor, calls the configured AI provider, validates that returned remedies belong to the submitted candidate catalogue, and only then calls the existing idempotent `consume_repertorization_token` RPC. The same `request_id` is retained across retries. AI/provider errors do not consume a token; subscription and balance enforcement remain server-side.
+
+### Required server configuration
+
+In Supabase Dashboard → Edge Functions → Secrets, configure:
+
+- `OPENAI_API_KEY` — server-side provider key (never add this to browser code or Git).
+- `OPENAI_MODEL` — optional; defaults to `gpt-4.1-mini`.
+
+The function is deployed with JWT verification enabled. Until `OPENAI_API_KEY` is configured, it deliberately returns `AI_PROVIDER_NOT_CONFIGURED` and does not deduct tokens.
+
+### Dataset and clinical scope
+
+The current mobile build supplies its existing eight-remedy seed catalogue to the AI service. This is an integration milestone, **not yet a complete remedy list or full repertory import**. No proprietary Complete Repertory content is bundled. Adonis and public-domain materia medica/repertory datasets must be sourced, provenance-tagged, checked for licence/public-domain status, and imported before the app can claim comprehensive coverage. The AI service is instructed not to invent rubric grades, source citations, or materia medica facts.
+
+VES is reported as a separate interpretive layer. GNM is shown as a separate, non-evidence-based hypothesis layer and does not contribute to remedy ranking or imply disease causation. Scores are comparative heuristic outputs, not probabilities, diagnoses, or treatment recommendations.
