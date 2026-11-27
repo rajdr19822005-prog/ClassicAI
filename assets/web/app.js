@@ -8,91 +8,6 @@
     // YOUR ACTIVE LIVE RAZORPAY KEY
     const RAZORPAY_KEY_ID = ""; // Set only after backend-verified checkout is implemented.
 
-    // MATERIA MEDICA DATABASE WITH SYNTHESIS TREASURE, VES, GNM & EXTENSIVE KEYWORDS
-    const materiaMedicaRepo = [
-      {
-        name: "Lycopodium Clavatum",
-        thermal: "Hot / Ambithermal",
-        miasm: "Psora-Sycosis",
-        vesAffinity: "Liver & Right Side Dominant, High Intellectual with Emotional Insecurity",
-        gnmMatches: ["GNM: Indigestible Morsel Conflict (Endoderm / Gut)", "GNM: Territorial Anger Conflict (Ectoderm / Bile/Stomach)"],
-        keywords: ["gas", "flatulence", "bloating", "liver", "right", "sweet", "warm", "4-8", "evening", "kidney", "stone", "intellectual", "erectile", "impotence", "hair", "belching", "fullness", "pet", "dard"],
-        keySymptoms: ["Desire: Sweets & Sugar", "Desire: Warm Food & Warm Drinks", "Side: Right-sided", "Aggravation: 4 to 8 PM", "Severe Flatulence & Gas in lower abdomen (4-8 PM)", "Kidney Stone: Right-sided sharp renal colic", "Thirsty (बड़ी मात्रा में पानी)"],
-        shortNote: "Synthesis Gr-4 in 4-8 PM agg, right to left. GNM: Territorial anger & indigestible conflict."
-      },
-      {
-        name: "Natrum Muriaticum",
-        thermal: "Hot",
-        miasm: "Psora-Syphilitic",
-        vesAffinity: "Deep Emotional Closed State, Ailments from Silent Grief (VES Level 4-6)",
-        gnmMatches: ["GNM: Separation Conflict (Ectoderm / Skin/Epidermis)", "GNM: Existence / Refugee / Abandonment (Kidney Collecting Tubules)"],
-        keywords: ["grief", "sad", "weep", "salt", "sun", "headache", "migraine", "alone", "consolation", "dry", "skin", "eczema", "hair", "anemia", "dhup", "sir dard", "chup", "ronaa"],
-        keySymptoms: ["Desire: Salt & Extra salty", "Consolation Aggravates", "Sensitive to Sun / Heat of Sun", "Never Well Since: Grief / Emotional Shock", "Headache aggravated by Sun exposure", "Aversion: Bread", "Observation: Serious, Despair, Sad"],
-        shortNote: "Synthesis Gr-4 in silent grief & sun agg. GNM: Severe separation & abandonment conflict."
-      },
-      {
-        name: "Arsenicum Album",
-        thermal: "Chilly",
-        miasm: "Psora-Syphilitic",
-        vesAffinity: "Extreme Anxiety of Health, Fastidiousness, Restlessness (VES Keynote King)",
-        gnmMatches: ["GNM: Death-Fright / Suffocation (Endoderm / Lung Alveoli)", "GNM: Existence / Refugee / Abandonment (Kidney Collecting Tubules)"],
-        keywords: ["anxiety", "restless", "fear", "death", "fastidious", "clean", "ocd", "midnight", "burning", "warm", "asthma", "diarrhea", "poison", "chinta", "bechaini", "jalan", "safai"],
-        keySymptoms: ["Fastidious: Extreme Neatness / OCD", "Small sips, frequent (घूंट-घूंट प्यास)", "Aggravation: Midnight 12-2 AM", "Desire: Warm Food & Warm Drinks", "Asthma worse between 12 to 2 AM", "Disturbed Sleep, Wakes with anxiety", "Fear of Solitude & Darkness"],
-        shortNote: "Synthesis Gr-4 in midnight agg & burning amel heat. GNM: Death-fright & panic."
-      },
-      {
-        name: "Pulsatilla Nigricans",
-        thermal: "Hot (Craves Open Air)",
-        miasm: "Psora-Sycosis",
-        vesAffinity: "Mild, Gentle, Weeping Mood, Seeking Sympathy (VES Group A-B)",
-        gnmMatches: ["GNM: Separation Conflict (Ectoderm / Skin/Epidermis)", "GNM: Indigestible Morsel Conflict (Endoderm / Gut)"],
-        keywords: ["mild", "gentle", "weep", "cry", "sympathy", "fat", "butter", "thirstless", "open air", "changeable", "pcod", "menses", "delayed", "catarrh", "hava", "pyas", "santwana"],
-        keySymptoms: ["Observation: Timid, Hesitant, Slow", "Consolation Ameliorates (Craves sympathy)", "Aversion: Meat & Fatty Foods", "Thirstless (प्यास बिल्कुल नहीं)", "PCOD with Delayed, Scanty Menses", "Onset: Gradual & Insidious"],
-        shortNote: "Synthesis Gr-4 in thirstlessness & open air amel. GNM: Abandonment/separation without bitterness."
-      },
-      {
-        name: "Nux Vomica",
-        thermal: "Chilly",
-        miasm: "Psora",
-        vesAffinity: "Type-A Workaholic, Hypersensitive, Abusing Stimulants (VES Toxic Group)",
-        gnmMatches: ["GNM: Territorial Anger Conflict (Ectoderm / Bile/Stomach)", "GNM: Indigestible Morsel Conflict (Endoderm / Gut)"],
-        keywords: ["angry", "irritable", "spicy", "chilli", "coffee", "alcohol", "constipation", "urging", "gastric", "acidity", "morning", "antibiotic", "insomnia", "gussa", "kabz", "mirch"],
-        keySymptoms: ["Observation: Bold, Fast, Hurried", "Violent Anger, Throws things", "AWOTA: Angry When Obliged To Answer", "Desire: Spicy & Pungent", "Acidity, GERD & Sour Eructations after meals", "Suppression: Recurrent Antibiotics / Steroids", "Aggravation: Morning on waking"],
-        shortNote: "Synthesis Gr-4 in ineffectual urging & irritability. GNM: Intense territorial rivalry & anger."
-      },
-      {
-        name: "Phosphorus",
-        thermal: "Chilly / Ambithermal",
-        miasm: "Tubercular",
-        vesAffinity: "Open, Clairvoyant, Diffuse Energy, Impressionable (VES Level 2-4)",
-        gnmMatches: ["GNM: Separation Conflict (Ectoderm / Skin/Epidermis)", "GNM: Death-Fright / Suffocation (Endoderm / Lung Alveoli)"],
-        keywords: ["cold drink", "ice", "bleed", "hemorrhage", "thunder", "dark", "fear", "tall", "slender", "left", "cough", "hoarse", "throat", "hair fall", "thand", "barf", "khansi"],
-        keySymptoms: ["Desire: Ice-cold Drinks & Ice", "Fear of Solitude & Darkness", "Side: Left-sided", "Thirsty (बड़ी मात्रा में पानी)", "Never Well Since: Grief / Emotional Shock", "Sensitive to Strong Light"],
-        shortNote: "Synthesis Gr-4 craving cold drinks & bleeding tendency. GNM: Fear of losing boundary."
-      },
-      {
-        name: "Lachesis Muta",
-        thermal: "Hot",
-        miasm: "Syphilitic",
-        vesAffinity: "Left to Right, Suspicious, Loquacious, Extreme Suffocation (VES High Intensity)",
-        gnmMatches: ["GNM: Attack / Defilement Conflict (Mesoderm / Corium)", "GNM: Territorial Anger Conflict (Ectoderm / Bile/Stomach)"],
-        keywords: ["tight", "neck", "collar", "choke", "sleep", "jealous", "suspicious", "talk", "left", "menopause", "flush", "purplish", "throat", "gala", "tang", "neend"],
-        keySymptoms: ["Intolerance to Tight Clothing (Neck/Waist)", "Side: Left-sided", "Aggravation: Midnight 12-2 AM", "Violent Anger, Throws things", "Hot Flushes with mood swings during Menopause"],
-        shortNote: "Synthesis Gr-4 intolerance to constriction & agg after sleep. GNM: Territorial threat."
-      },
-      {
-        name: "Thuja Occidentalis",
-        thermal: "Chilly",
-        miasm: "Sycosis",
-        vesAffinity: "Fixed Ideas, Sycotic Overgrowth, Bad Effects of Vaccination (VES Miasmatic Core)",
-        gnmMatches: ["GNM: Attack / Defilement Conflict (Mesoderm / Corium)", "GNM: Self-Devaluation Conflict (New Mesoderm / Bones/Joints)"],
-        keywords: ["wart", "mole", "vaccine", "growth", "tumor", "polyp", "tea", "onion", "left", "dandruff", "perspiration", "sweetish", "fixed idea", "massa", "tika"],
-        keySymptoms: ["Suppression: Skin Eruptions suppressed by Ointments", "Multiple Warts on face, hands and neck", "Suppression: Recurrent Antibiotics / Steroids", "Dreams of Falling, Dead bodies, Snakes", "Aversion: Meat & Fatty Foods"],
-        shortNote: "Synthesis Gr-4 in warts & sycosis. GNM: Defilement, feeling unclean/damaged."
-      }
-    ];
-
-
     // Safely update optional UI elements so missing hidden/modal elements cannot crash the app.
     function setText(id, value) {
       const element = document.getElementById(id);
@@ -532,8 +447,8 @@
       const thirst = document.getElementById("pThirstVal")?.value || "";
       const diagnosis = document.getElementById("pDiagnosis")?.value || "";
       const vesLevel = document.getElementById("vesLevel")?.value || "";
-      if (!thermal || !thirst || !diagnosis || !vesLevel || selectedRubricsList.length === 0) {
-        alert("Complete the required case fields and select at least one repertory symptom before running AI repertorisation.");
+      if (!diagnosis) {
+        alert("Select a case category before running AI repertorisation.");
         return;
       }
 
@@ -568,12 +483,12 @@
           body: {
             request_id: requestId,
             diagnosis_category: diagnosis,
-            selected_rubrics: [...selectedRubricsList],
-            other_symptoms: otherSymptoms.join("\\n").slice(0, 5000),
+            case_age: document.getElementById("pAge")?.value || "",
+            case_gender: document.getElementById("pGender")?.value || "",
+            case_narrative: otherSymptoms.join("\\n").slice(0, 7000),
             thermal,
             thirst,
-            ves_level: vesLevel,
-            candidate_remedies: materiaMedicaRepo
+            ves_level: vesLevel
           }
         });
         if (error || !data?.success || !Array.isArray(data.top_remedies)) {
