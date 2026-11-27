@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ClassicAI Billing Admin</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#172033;background:#f1f5f9}body{margin:0}.wrap{max-width:1100px;margin:auto;padding:20px}.card{background:#fff;border:1px solid #dbe3ed;border-radius:14px;padding:18px;margin:14px 0}h1{color:#115e59;margin:0}h2{font-size:18px}h3{font-size:15px;margin-top:18px}p{line-height:1.45}.muted{color:#64748b;font-size:13px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}label{display:block;font-size:13px;font-weight:650;margin:8px 0 5px}input,select,button{font:inherit;border-radius:9px;padding:9px;border:1px solid #cbd5e1}input,select{width:100%;box-sizing:border-box}button{background:#0f766e;color:white;border:0;font-weight:700;cursor:pointer;margin-top:8px}.secondary{background:#e2e8f0;color:#0f172a}.tablewrap{overflow:auto}table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:9px;border-bottom:1px solid #e2e8f0}.status{font-size:13px;white-space:pre-wrap}.notice{padding:12px;border-radius:9px;background:#fef3c7;color:#78350f}.hidden{display:none!important}
+</style></head><body><main class="wrap">
+<header><h1>ClassicAI · Billing Administration</h1><p class="muted">Basic app subscription · AI Model add-on only · Common messaging wallet · 30% service margin</p></header>
+<div id="status" class="card status">Checking administrator session…</div>
+<section id="panel" class="hidden">
+<div class="notice">This is a preview configuration panel. Razorpay checkout, wallet top-ups and provider message delivery must remain disabled until test-mode payment/webhook and provider end-to-end verification is complete. Do not enter production credentials here.</div>
+<div class="card"><h2>AI Model Subscription Pricing & Validity</h2><p class="muted">Basic app access is ₹2,999 / 365 days after the 15-day free trial. Only AI Model access has a separate add-on subscription.</p><div class="tablewrap"><table><thead><tr><th>Module</th><th>Price ₹</th><th>Validity days</th><th>Enabled</th><th></th></tr></thead><tbody id="catalog"></tbody></table></div></div>
+<div class="card"><h2>Messaging Provider Rates</h2><p class="muted">Set actual provider cost per message. ClassicAI automatically applies a fixed 30% margin at deduction time; this margin cannot be edited here.</p><div class="tablewrap"><table><thead><tr><th>Channel</th><th>Provider cost ₹ / message</th><th>Service margin</th><th>Enabled</th><th></th></tr></thead><tbody id="rates"></tbody></table></div></div>
+<div class="card"><h2>AI Model Subscription Access</h2><div class="grid"><div><label for="doctor">Doctor</label><select id="doctor"></select></div><div><label for="module">Module</label><select id="module"><option value="live_ai_agent">AI Model / Live AI Agent</option></select></div><div><label for="mode">Action</label><select id="mode"><option value="suspend">Suspend module</option><option value="reactivate">Reactivate paid module</option></select></div><div><label for="reason">Suspension reason</label><input id="reason" maxlength="500"></div></div><button id="apply">Apply module access change</button><p id="actionStatus" class="status"></p></div>
+<div class="card"><h2>Wallet & AI Model Overview</h2><div class="tablewrap"><table><thead><tr><th>Doctor</th><th>Wallet balance</th><th>Module access status</th></tr></thead><tbody id="doctorRows"></tbody></table></div></div>
+</section>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0"></script><script src="../assets/web/supabase-config.js"></script>
+<script>
+(() => {
+ const $=id=>document.getElementById(id), safe=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+ let client=null, endpoint=null, doctors=[];
+ async function api(payload){
+  const {data:{session}}=await client.auth.getSession(); if(!session?.access_token) throw new Error("Admin session expired.");
+  const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json","apikey":window.CLASSICAI_SUPABASE_PUBLISHABLE_KEY,"Authorization":"Bearer "+session.access_token},body:JSON.stringify(payload)});
+  const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||"Billing request failed"); return j;
+ }
+ async function load(){
+  const [settings,dir]=await Promise.all([api({action:"list_catalog"}),api({action:"list_doctors"})]); doctors=dir.doctors||[];
+  $("catalog").innerHTML=(settings.catalog||[]).map(m=>'<tr><td><b>'+safe(m.display_name)+'</b><br><small>'+safe(m.module_key)+'</small></td><td><input type="number" min="1" step=".01" id="price_'+safe(m.module_key)+'" value="'+(m.price_paise==null?"":Number(m.price_paise)/100)+'"></td><td><input type="number" min="1" max="3650" id="days_'+safe(m.module_key)+'" value="'+(m.duration_days||"")+'"></td><td><input type="checkbox" id="on_'+safe(m.module_key)+'" '+(m.enabled?"checked":"")+' style="width:auto"></td><td><button class="secondary" data-catalog="'+safe(m.module_key)+'">Save</button></td></tr>').join("");
+  $("rates").innerHTML=(settings.rates||[]).map(r=>'<tr><td><b>'+safe(r.provider.toUpperCase())+'</b></td><td><input type="number" min=".01" step=".01" id="rate_'+safe(r.provider)+'" value="'+(Number(r.provider_cost_paise)/100)+'"></td><td>30% fixed</td><td><input type="checkbox" id="rateon_'+safe(r.provider)+'" '+(r.enabled?"checked":"")+' style="width:auto"></td><td><button class="secondary" data-rate="'+safe(r.provider)+'">Save</button></td></tr>').join("");
+  $("doctor").innerHTML=doctors.filter(d=>d.auth_user_id).map(d=>'<option value="'+safe(d.id)+'">'+safe(d.doctor_name)+' · #'+safe(d.id)+'</option>').join("");
+  $("doctorRows").innerHTML=doctors.map(d=>'<tr><td>'+safe(d.doctor_name)+' · #'+safe(d.id)+'</td><td>₹'+(Number(d.wallet_balance_paise||0)/100).toFixed(2)+'</td><td>'+((d.modules||[]).map(m=>safe(m.module_key)+": "+safe(m.status)+(m.admin_suspended?" (Admin suspended)":"")).join("<br>")||"No module entitlements")+'</td></tr>').join("");
+ }
+ $("catalog").addEventListener("click",async e=>{const b=e.target.closest("[data-catalog]");if(!b)return;try{const k=b.dataset.catalog;await api({action:"set_catalog",moduleKey:k,priceRupees:Number($("price_"+k).value),durationDays:Number($("days_"+k).value),enabled:$("on_"+k).checked});$("actionStatus").textContent="Module settings saved.";await load();}catch(x){$("actionStatus").textContent=x.message;}});
+ $("rates").addEventListener("click",async e=>{const b=e.target.closest("[data-rate]");if(!b)return;try{const k=b.dataset.rate;await api({action:"set_rate",provider:k,providerCostRupees:Number($("rate_"+k).value),enabled:$("rateon_"+k).checked});$("actionStatus").textContent="Provider rate saved. The 30% margin remains fixed.";await load();}catch(x){$("actionStatus").textContent=x.message;}});
+ $("apply").addEventListener("click",async()=>{try{const doctorId=Number($("doctor").value);if(!doctorId)throw new Error("Select a linked doctor.");const moduleKey=$("module").value,mode=$("mode").value;if(!confirm((mode==="suspend"?"Suspend ":"Reactivate ")+moduleKey+"?"))return;await api({action:"set_module_entitlement",doctorId,moduleKey,mode,reason:$("reason").value.trim()});$("actionStatus").textContent="Module access updated. Reactivation succeeds only if paid validity remains."; $("reason").value="";await load();}catch(x){$("actionStatus").textContent=x.message;}});
+
+ if(location.search.includes("demo=1")) {
+  $("status").textContent="Read-only visual preview. Sample rows only; no database writes or billing actions.";
+  $("panel").classList.remove("hidden");
+  $("catalog").innerHTML=[
+   ["AI Model / Live AI Agent","₹2,000","365 days","Not activated"],
+   ["WhatsApp Messaging","Set by Admin","Set by Admin","Not activated"],
+   ["Premium Clinic Suite","Set by Admin","Set by Admin","Not activated"]
+  ].map(r=>"<tr><td><b>"+r[0]+"</b></td><td>"+r[1]+"</td><td>"+r[2]+"</td><td>"+r[3]+"</td><td><button disabled>Preview only</button></td></tr>").join("");
+  $("rates").innerHTML=["SMS","WhatsApp"].map(r=>"<tr><td><b>"+r+"</b></td><td>Set actual provider cost</td><td>30% fixed</td><td>Disabled</td><td><button disabled>Preview only</button></td></tr>").join("");
+  $("doctor").innerHTML='<option value="0">Sample Doctor (fictional)</option>';
+  $("doctorRows").innerHTML='<tr><td>Sample Doctor (fictional)</td><td>₹0.00</td><td>Sample only · no live entitlement</td></tr>';
+  $("apply").disabled=true;
+  $("panel").querySelectorAll("button").forEach(b=>{b.disabled=true;b.style.opacity=".55";});
+  return;
+ }
+
+ (async()=>{try{const url=window.CLASSICAI_SUPABASE_URL,key=window.CLASSICAI_SUPABASE_PUBLISHABLE_KEY;if(!url||!key||!window.supabase?.createClient)throw new Error("Supabase site configuration unavailable.");client=window.supabase.createClient(url,key);endpoint=url+"/functions/v1/admin-module-billing";const {data:{session}}=await client.auth.getSession();if(!session)throw new Error("Sign in to the main Admin app first, then open Billing Administration.");const {data,error}=await client.auth.getUser();if(error||data.user?.app_metadata?.role!=="admin")throw new Error("Administrator role required.");await load();$("panel").classList.remove("hidden");$("status").textContent="Authenticated as administrator. Billing configuration loaded.";}catch(e){$("status").textContent=e.message;}})();
+})();
+</script></main></body></html>

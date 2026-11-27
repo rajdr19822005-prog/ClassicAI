@@ -18,6 +18,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;p
 </head>
 <body><main class="wrap">
 <header><h1>ClassicalAI Admin</h1><p class="muted">Secure integration preview · no PIN storage · no service-role key in this page</p></header>
+<p><a href="billing-admin.html" style="display:inline-block;background:#0f766e;color:white;padding:10px 14px;border-radius:9px;text-decoration:none;font-weight:700">Open Module & Wallet Billing Admin →</a></p>
 <div class="notice">Patient case cloud storage is not enabled in this preview. Cases remain in this browser session and may be lost on refresh or sign-out. Do not enter real patient records here. Before cloud case storage is released, complete two-doctor access-isolation tests and deploy the reviewed case-archive changes.</div>
 
 <section id="config" class="card">
@@ -158,7 +159,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;p
       setStatus("Loading doctors…");
       const result=await callApi({action:"list_doctors"});
       const rows=result.doctors||[];
-      $("doctors").innerHTML=rows.length?rows.map(d=>'<tr><td><strong>'+safe(d.doctor_name)+'</strong><br><span class="muted">'+safe(d.clinic_name)+'</span></td><td>'+safe(d.reg_no)+'</td><td>'+safe(d.status)+'</td><td>'+safe(d.ai_tokens)+'</td><td>'+(d.auth_user_id?"Linked":"Not linked")+'</td><td><div class="doctor-actions"><button data-act="invite" data-id="'+safe(d.id)+'" data-reg="'+safe(d.reg_no)+'" class="secondary">Invite</button><button data-act="status" data-id="'+safe(d.id)+'" data-status="'+(d.status==="Active"?"Inactive":"Active")+'" class="secondary">'+(d.status==="Active"?"Deactivate":"Activate")+'</button><button data-act="tokens" data-id="'+safe(d.id)+'" class="secondary">Set tokens</button></div></td></tr>').join(""):'<tr><td colspan="6">No doctor records found.</td></tr>';
+      $("doctors").innerHTML=rows.length?rows.map(d=>'<tr><td><strong>'+safe(d.doctor_name)+'</strong><br><span class="muted">'+safe(d.applicant_type==="student"?"Medical Student":(d.registration_type==="provisional"?"Doctor · Temporary / Provisional":"Doctor · Permanent"))+'</span><br><span class="muted">'+safe(d.college_name||d.clinic_name||"")+(d.course_name?" · "+safe(d.course_name):"")+(d.study_year?" · Year "+safe(d.study_year):"")+'</span></td><td>'+safe(d.applicant_type==="student"?(d.student_id||d.reg_no):d.reg_no)+'</td><td>'+safe(d.status)+(d.verification_status?" · "+safe(d.verification_status):"")+'</td><td>'+safe(d.ai_tokens)+'</td><td>'+(d.auth_user_id?"Linked":"Not linked")+'</td><td><div class="doctor-actions">'+(!d.auth_user_id?'<button data-act="invite" data-id="'+safe(d.id)+'" data-reg="'+safe(d.reg_no)+'" class="secondary">Invite</button>':'')+'<button data-act="status" data-id="'+safe(d.id)+'" data-status="'+(d.status==="Active"?"Inactive":"Active")+'" class="secondary">'+(d.status==="Active"?"Deactivate":"Approve / Activate")+'</button><button data-act="tokens" data-id="'+safe(d.id)+'" class="secondary">Set tokens</button></div></td></tr>').join(""):'<tr><td colspan="6">No doctor records found.</td></tr>';
       setStatus("Loaded "+rows.length+" doctor record(s).");
     }catch(e){setStatus(e.message);}
   }

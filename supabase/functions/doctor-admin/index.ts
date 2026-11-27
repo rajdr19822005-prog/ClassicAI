@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
 
     if (action === "list_doctors") {
       const { data, error } = await admin.from("doctors")
-        .select("id,doctor_name,clinic_name,reg_no,whatsapp_no,ai_tokens,status,auth_user_id,created_at")
+        .select("id,doctor_name,clinic_name,reg_no,whatsapp_no,ai_tokens,status,auth_user_id,created_at,applicant_type,registration_type,college_name,course_name,study_year,student_id,verification_status")
         .order("id", { ascending: false });
       if (error) throw error;
       return json(200, { doctors: data ?? [] });
@@ -129,7 +129,10 @@ Deno.serve(async (req) => {
       if (!Number.isSafeInteger(doctorId) || doctorId < 1 || !["Active", "Inactive", "Pending"].includes(status)) {
         return json(400, { error: "Valid doctorId and status are required" });
       }
-      const { error } = await admin.from("doctors").update({ status }).eq("id", doctorId);
+      const update: Record<string, unknown> = { status };
+      if (status === "Active") update.verification_status = "verified";
+      else if (status === "Pending") update.verification_status = "pending";
+      const { error } = await admin.from("doctors").update(update).eq("id", doctorId);
       if (error) throw error;
       return json(200, { success: true });
     }

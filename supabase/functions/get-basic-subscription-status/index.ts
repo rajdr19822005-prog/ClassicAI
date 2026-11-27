@@ -11,6 +11,8 @@ const keyId = Deno.env.get("RAZORPAY_KEY_ID") ?? "";
 const keySecret = Deno.env.get("RAZORPAY_KEY_SECRET") ?? "";
 const webhookSecret = Deno.env.get("RAZORPAY_WEBHOOK_SECRET") ?? "";
 const paymentsEnabled = Deno.env.get("BASIC_SUBSCRIPTION_PAYMENTS_ENABLED") === "true";
+const walletPaymentsEnabled = Deno.env.get("WALLET_PAYMENTS_ENABLED") === "true";
+const aiModelPaymentsEnabled = Deno.env.get("AI_MODEL_PAYMENTS_ENABLED") === "true";
 const allowedOrigins = new Set(["https://classicai.vercel.app", "null", "http://localhost", "http://127.0.0.1"]);
 const isAllowedOrigin = (origin: string | null) => !origin || allowedOrigins.has(origin) ||
   (origin.startsWith("https://classicai-") && origin.endsWith(".vercel.app"));
@@ -53,25 +55,30 @@ Deno.serve(async (req: Request) => {
   try {
     const admin = adminClient();
     const { data: doctor, error: doctorError } = await admin.from("doctors")
-      .select("id, ai_tokens, status").eq("auth_user_id", user.id).eq("status", "Active").maybeSingle();
+      .select("id, ai_tokens, status, trial_started_at, trial_expires_at").eq("auth_user_id", user.id).eq("status", "Active").maybeSingle();
     if (doctorError || !doctor) return json(403, { error: "An active approved doctor account is required." }, origin);
     const { data: subscription, error } = await admin.from("doctor_subscriptions")
       .select("plan_id, status, starts_at, expires_at")
       .eq("doctor_id", doctor.id).eq("auth_user_id", user.id).maybeSingle();
     if (error) throw error;
-    const { data: config, error: configError } = await admin.from("basic_subscription_config")
-      .select("enforcement_enabled").eq("id", 1).maybeSingle();
-    if (configError) throw configError;
-    const active = Boolean(subscription && subscription.status === "active" &&
+    const subscriptionActive = Boolean(subscription && subscription.status === "active" &&
       new Date(subscription.starts_at).getTime() <= Date.now() &&
       new Date(subscription.expires_at).getTime() > Date.now());
+    const trialActive = Boolean(doctor.trial_expires_at &&
+      new Date(doctor.trial_expires_at).getTime() > Date.now());
+    const active = subscriptionActive || trialActive;
     return json(200, {
-      active, enforcementEnabled: config?.enforcement_enabled === true,
+      active, subscriptionActive, trialActive,
+      enforcementEnabled: true,
       planId: subscription?.plan_id ?? null,
       startsAt: subscription?.starts_at ?? null, expiresAt: subscription?.expires_at ?? null,
+      trialStartedAt: doctor.trial_started_at ?? null,
+      trialExpiresAt: doctor.trial_expires_at ?? null,
       balance: Number(doctor.ai_tokens ?? 0), pricePaise: 299900,
-      creditsIncluded: 50, validityMonths: 12,
-      checkoutEnabled: paymentsEnabled && Boolean(keyId && keySecret && webhookSecret)
+      creditsIncluded: 50, validityMonths: 12, trialDays: 15,
+      checkoutEnabled: paymentsEnabled && Boolean(keyId && keySecret && webhookSecret),
+      walletCheckoutEnabled: walletPaymentsEnabled && Boolean(keyId && keySecret && webhookSecret),
+      aiModelCheckoutEnabled: aiModelPaymentsEnabled && Boolean(keyId && keySecret && webhookSecret)
     }, origin);
   } catch (error) {
     console.error("get-basic-subscription-status failed", error);

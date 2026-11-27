@@ -5,7 +5,7 @@
   let premiumData = { patients: [], medicines: [], invoices: [], followups: [] };
   let premiumDemoSeeded = false;
   let integrationStatuses = {};
-  const isPremiumDemo = () => typeof demoMode !== "undefined" && demoMode === true;
+  const isPremiumDemo = () => false;
   function seedPremiumDemoData() {
     if (premiumDemoSeeded) return;
     const now = new Date();
@@ -35,16 +35,18 @@
   const dateLabel = (value) => value ? new Date(value).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : "—";
 
   async function verifyIntegrationAccess() {
-    if (isPremiumDemo()) throw new Error("Safe Demo cannot save real API credentials.");
+    if (isPremiumDemo()) throw new Error("Demo access is unavailable; sign in with an approved doctor account.");
     if (!currentDoctor || !supabaseClient) throw new Error("Please sign in with an approved doctor account.");
     const { data, error } = await supabaseClient.auth.getUser();
     if (error || !data?.user) throw new Error("Doctor session expired. Please sign in again.");
+    const { data: basic, error: basicError } = await supabaseClient.functions.invoke("get-basic-subscription-status", { body: {} });
+    if (basicError || !basic?.active) throw new Error("An active Basic trial or subscription is required for SMS / WhatsApp / AI integration settings.");
     return data.user.id;
   }
 
   async function verifyPremiumAccess() {
     if (isPremiumDemo()) {
-      if (!currentDoctor) throw new Error("Safe Demo session is not active.");
+      if (!currentDoctor) throw new Error("Approved doctor session is required.");
       seedPremiumDemoData();
       return "demo-local";
     }
@@ -64,11 +66,11 @@
         <div class="flex justify-between items-start gap-3">
           <div><p class="text-[10px] uppercase tracking-widest text-amber-300 font-black">ClassicAI Premium Suite</p>
           <h2 class="text-xl font-black mt-1">Clinic Workspace</h2>
-          <p class="text-xs text-slate-300 mt-1">${isPremiumDemo() ? "SAFE DEMO · fictional data only · memory-only" : "Private clinic data · doctor-only access"}</p></div>
+          <p class="text-xs text-slate-300 mt-1">Private clinic data · doctor-only access</p></div>
           <button type="button" onclick="closePremiumModules()" class="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold">Back</button>
         </div>
       </div>
-      ${isPremiumDemo() ? '<div class="rounded-xl border border-amber-300 bg-amber-50 text-amber-950 p-3 text-xs mb-3"><b>Safe Demo mode:</b> Test patient, inventory, billing and follow-up workflows with fictional sample data. Changes stay in this browser session only; nothing is uploaded, saved to Supabase, billed, or sent to WhatsApp/SMS.</div>' : ""}
+      
       <div class="grid grid-cols-3 gap-1.5 mb-3">
         <button onclick="switchPremiumTab('overview')" class="pm-tab" data-tab="overview">Overview</button>
         <button onclick="switchPremiumTab('patients')" class="pm-tab" data-tab="patients">Patients</button>
@@ -274,6 +276,15 @@
     ].join("");
   }
 
+    async function verifyAiModelSubscription() {
+      const { data, error } = await supabaseClient.from("doctor_module_entitlements")
+        .select("status,paid_until,admin_suspended").eq("doctor_id",currentDoctor.id).eq("module_key","live_ai_agent").maybeSingle();
+      if (error) throw error;
+      if (!data || data.status !== "active" || data.admin_suspended || !data.paid_until || new Date(data.paid_until).getTime() <= Date.now()) {
+        throw new Error("AI Model add-on subscription is required to configure the AI provider. Open AI Model Add-on to subscribe.");
+      }
+    }
+
   function render() {
     const panel = $("premiumModulePanel");
     if (!panel) return;
@@ -295,6 +306,7 @@
         try {
           if (isPremiumDemo()) throw new Error("Safe Demo cannot save real API credentials. Sign in to an approved doctor account.");
           await verifyIntegrationAccess();
+          if (provider === "ai") await verifyAiModelSubscription();
           const values = new FormData(event.currentTarget);
           const { data, error } = await supabaseClient.functions.invoke("save-doctor-integration", {
             body: { provider, config:configBuilder(values), secret:JSON.stringify(secretBuilder(values)) }
