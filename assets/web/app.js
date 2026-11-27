@@ -478,7 +478,10 @@
         requestId = sessionStorage.getItem(requestStorageKey) || "";
         storedFingerprint = sessionStorage.getItem(requestFingerprintKey) || "";
       } catch (_) {}
-      if (requestFingerprint && storedFingerprint !== requestFingerprint) requestId = "";
+      if (requestFingerprint && storedFingerprint !== requestFingerprint) {
+        requestId = "";
+        window.__classicaiPendingRepertorizationRequestId = "";
+      }
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
         requestId = window.__classicaiPendingRepertorizationRequestId || "";
       }
