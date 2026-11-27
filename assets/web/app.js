@@ -523,217 +523,175 @@
 
     // ADVANCED REPERTORIZATION: SYNTHESIS + VES + GNM + "OTHER SYMPTOMS"
     async function executeAIRepertorization() {
-      if (!currentDoctor || !currentDoctor.reg_no) {
-        alert("सुरक्षित डॉक्टर लॉगिन उपलब्ध होने तक यह क्रिया बंद है।");
-        return;
-      }
-      // Repertorization is calculated locally, then charged exactly once by the trusted backend.
-      // Keep the request ID across retries so a lost response cannot cause a duplicate deduction.
-      if (demoMode || !supabaseClient) {
-        alert("Tokenized repertorization requires an authenticated active doctor account.");
+      if (!currentDoctor || !currentDoctor.reg_no || demoMode || !supabaseClient) {
+        alert("AI repertorisation requires an authenticated active doctor account. Demo mode is not billable.");
         return;
       }
       if (window.__classicaiRepertorizationRunning) return;
-      window.__classicaiRepertorizationRunning = true;
-      const actionButton = document.querySelector('[onclick="executeAIRepertorization()"]');
-      if (actionButton) {
-        actionButton.disabled = true;
-        actionButton.dataset.originalLabel = actionButton.innerHTML;
-        actionButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-sm"></i> Generating…';
+      const thermal = document.getElementById("pThermalVal")?.value || "";
+      const thirst = document.getElementById("pThirstVal")?.value || "";
+      const diagnosis = document.getElementById("pDiagnosis")?.value || "";
+      const vesLevel = document.getElementById("vesLevel")?.value || "";
+      if (!thermal || !thirst || !diagnosis || !vesLevel || selectedRubricsList.length === 0) {
+        alert("Complete the required case fields and select at least one repertory symptom before running AI repertorisation.");
+        return;
       }
 
-      try {
-      const patientThermal = document.getElementById("pThermalVal")?.value;
-      const patientThirst = document.getElementById("pThirstVal")?.value;
-      const dxCategory = document.getElementById("pDiagnosis")?.value;
-      const vesLevel = document.getElementById("vesLevel")?.value;
-      if (!patientThermal || !patientThirst || !dxCategory || !vesLevel) {
-        throw new Error("Required case fields are missing. Please complete the patient details and try again.");
-      }
-      let otherSymptomsFullText = "";
+      let otherSymptoms = [];
       for (let i = 1; i <= 8; i++) {
         const field = document.getElementById(`pOtherStep${i}`);
-        if (field && field.value.trim()) {
-          otherSymptomsFullText += " " + field.value.trim().toLowerCase();
-        }
+        if (field?.value?.trim()) otherSymptoms.push(field.value.trim());
       }
-      // Doctor-approved note-derived rubric search terms join the existing local
-      // keyword matcher. Unapproved suggestions never affect the repertorization.
-      const approvedNoteRubricTerms = typeof window.getClassicAIApprovedNoteTerms === "function"
-        ? window.getClassicAIApprovedNoteTerms()
-        : [];
-      otherSymptomsFullText += " " + approvedNoteRubricTerms.join(" ").toLowerCase();
-
-      const missingQuestions = [];
-      if (!selectedRubricsList.some(r => r.startsWith("GNM:"))) {
-        missingQuestions.push("• क्या आपने Step 5 में जैविक/भावनात्मक आघात (GNM Biological Conflict) चिह्नित किया है?");
-      }
-      if (!selectedRubricsList.some(r => r.includes("Onset"))) {
-        missingQuestions.push("• बीमारी की शुरुआत का प्रकार (Sudden vs Gradual Onset) स्पष्ट करें।");
-      }
-      if (!selectedRubricsList.some(r => r.includes("Side"))) {
-        missingQuestions.push("• क्या दर्द/लक्षणों में स्पष्ट दिशा (Right vs Left side) मौजूद है?");
-      }
-
-      const qBox = document.getElementById("aiSuggestedQuestionsBox");
-      const qList = document.getElementById("aiQuestionsList");
-      if (missingQuestions.length > 0) {
-        qList.innerHTML = missingQuestions.map(q => `<div>${q}</div>`).join("");
-        qBox.classList.remove("hidden");
-      } else {
-        qList.innerHTML = "<div>• Synthesis Treasure रूब्रिक्स, VES व GNM का त्रिकोणीय विश्लेषण पूर्ण है!</div>";
-        qBox.classList.remove("hidden");
-      }
-
-      const scoredList = materiaMedicaRepo.map(med => {
-        let score = 10;
-        let matchedSymptoms = [];
-
-        if (vesLevel === "Group_A" && (med.name === "Arsenicum Album" || med.name === "Nux Vomica")) score += 4;
-        if (vesLevel === "Group_C" && (med.name === "Thuja Occidentalis" || med.name === "Lycopodium Clavatum")) score += 5;
-
-        if (med.thermal.toLowerCase().includes(patientThermal.toLowerCase().substring(0, 3))) {
-          score += 8;
-          matchedSymptoms.push("Thermal Affinity (" + patientThermal.split(' ')[0] + ")");
-        }
-
-        if (med.keySymptoms.some(s => s.toLowerCase().includes("thirst") && patientThirst.toLowerCase().includes("thirst"))) {
-          score += 6;
-          matchedSymptoms.push("Thirst Alignment (" + patientThirst.split(' ')[0] + ")");
-        }
-
-        med.keySymptoms.forEach(sym => {
-          if (selectedRubricsList.some(r => r.toLowerCase().includes(sym.toLowerCase()) || sym.toLowerCase().includes(r.toLowerCase()))) {
-            score += 8;
-            matchedSymptoms.push(sym);
-          }
-        });
-
-        med.gnmMatches.forEach(gnm => {
-          if (selectedRubricsList.includes(gnm)) {
-            score += 10;
-            matchedSymptoms.push("⭐ " + gnm.replace("GNM: ", "GNM Matched: "));
-          }
-        });
-
-        if (otherSymptomsFullText && med.keywords) {
-          let matchedKeywords = [];
-          med.keywords.forEach(kw => {
-            if (otherSymptomsFullText.includes(kw)) {
-              matchedKeywords.push(kw);
-              score += 5;
-            }
-          });
-          if (matchedKeywords.length > 0) {
-            matchedSymptoms.push("📝 Other Symptoms Match: (" + matchedKeywords.slice(0, 3).join(", ") + ")");
-          }
-        }
-
-        if (matchedSymptoms.length === 0) {
-          matchedSymptoms.push("General Constitutional Similitude", "Synthesis Rubric Overlap");
-          score += 4;
-        }
-
-        return {
-          ...med,
-          finalScore: score,
-          coveredSymptoms: matchedSymptoms
-        };
-      });
-
-      scoredList.sort((a, b) => b.finalScore - a.finalScore);
-      latestTop5Remedies = scoredList.slice(0, 5);
-
-      document.getElementById("rxParhez").value = generateAIDietRestrictions(latestTop5Remedies[0].name, dxCategory);
-
-      const container = document.getElementById("repertoryCardsList");
-      container.innerHTML = "";
-
-      latestTop5Remedies.forEach((r, idx) => {
-        const card = document.createElement("div");
-        card.className = "bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2.5 shadow-sm";
-        card.innerHTML = `
-          <div class="flex justify-between items-start">
-            <div>
-              <div class="flex items-center gap-1.5">                <span class="w-6 h-6 rounded-full bg-teal-800 text-white flex items-center justify-center text-xs font-bold">${idx + 1}</span>
-                <h4 class="font-extrabold text-sm text-teal-950">${r.name}</h4>
-              </div>
-              <p class="text-[10px] text-slate-500 mt-0.5">Miasm: <strong class="text-teal-900">${r.miasm}</strong> | Thermal: <strong class="text-amber-800">${r.thermal}</strong></p>
-              <p class="text-[9px] text-purple-700 font-semibold mt-0.5"><i class="fa-solid fa-dna mr-1"></i>VES: ${r.vesAffinity}</p>
-            </div>
-            <div class="text-right space-y-1">
-              <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-600 text-white shadow-sm border border-emerald-400">
-                Rank #${idx + 1}
-              </span>
-              <div class="text-[10px] font-bold text-slate-500">Weighted score: <strong class="text-slate-800">${r.finalScore}</strong></div>
-              <button type="button" onclick="pickRemedyForPrescription('${r.name}')" class="bg-teal-600 hover:bg-teal-700 text-white font-bold px-3 py-1 rounded-lg text-[10px] shadow">
-                Pick for Rx →
-              </button>
-            </div>
-          </div>
-
-          <div class="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
-            <p class="text-[10px] text-slate-700"><strong>Synthesis & GNM Analysis:</strong> ${r.shortNote}</p>
-            <span class="text-[9px] font-bold text-slate-500 uppercase block">Totality, GNM & Other Notes Covered (${r.coveredSymptoms.length}):</span>
-            <div class="flex flex-wrap gap-1">
-              ${r.coveredSymptoms.map(s => `<span class="${s.includes('GNM') ? 'bg-purple-50 text-purple-900 border-purple-200' : (s.includes('Other Symptoms') ? 'bg-amber-50 text-amber-900 border-amber-300 font-bold' : 'bg-emerald-50 text-emerald-900 border-emerald-200')} border text-[9px] px-1.5 py-0.5 rounded font-medium">✓ ${s}</span>`).join("")}
-            </div>
-          </div>
-        `;
-        container.appendChild(card);
-      });
-
-      // The local calculation is complete. Charge one token server-side before exposing
-      // the completed result. The backend derives doctor identity from the verified JWT.
+      const approvedTerms = typeof window.getClassicAIApprovedNoteTerms === "function"
+        ? window.getClassicAIApprovedNoteTerms() : [];
+      otherSymptoms = otherSymptoms.concat(approvedTerms);
       const requestStorageKey = "classicai_repertorization_request_" + String(currentDoctor.id);
       let requestId = "";
-      try {
-        requestId = sessionStorage.getItem(requestStorageKey) || "";
-      } catch (_) {}
+      try { requestId = sessionStorage.getItem(requestStorageKey) || ""; } catch (_) {}
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
         requestId = window.__classicaiPendingRepertorizationRequestId || "";
       }
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
-        requestId = crypto.randomUUID();
-      }
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) requestId = crypto.randomUUID();
       window.__classicaiPendingRepertorizationRequestId = requestId;
       try { sessionStorage.setItem(requestStorageKey, requestId); } catch (_) {}
 
-      const { data: tokenResult, error: tokenError } = await supabaseClient.functions.invoke("consume-repertorization-token", {
-        body: { request_id: requestId }
-      });
-      if (tokenError || !tokenResult?.success || !Number.isSafeInteger(Number(tokenResult.balance))) {
-        if (tokenResult?.code === "SUBSCRIPTION_REQUIRED") {
-          basicSubscriptionActive = false;
-          openRechargeModal();
-        }
-        let tokenFailureMessage = tokenResult?.error || tokenError?.message;
-        try {
-          const response = tokenError?.context;
-          if (response && typeof response.clone === "function") {
-            const failureBody = await response.clone().json();
-            tokenFailureMessage = failureBody?.error || tokenFailureMessage;
-          }
-        } catch (_) {}
-        throw new Error(tokenFailureMessage || "Token deduction could not be confirmed. Your result has not been marked complete; retry safely.");
+      const button = document.querySelector('[onclick="executeAIRepertorization()"]');
+      window.__classicaiRepertorizationRunning = true;
+      if (button) {
+        button.disabled = true;
+        button.dataset.originalLabel = button.innerHTML;
+        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> AI analysing case…';
       }
 
-      currentDoctor.ai_tokens = Number(tokenResult.balance);
-      setText("headerTokenCount", currentDoctor.ai_tokens);
-      setText("walletModalTokens", currentDoctor.ai_tokens);
-      window.__classicaiPendingRepertorizationRequestId = "";
-      try { sessionStorage.removeItem(requestStorageKey); } catch (_) {}
+      try {
+        const { data, error } = await supabaseClient.functions.invoke("ai-repertorize", {
+          body: {
+            request_id: requestId,
+            diagnosis_category: diagnosis,
+            selected_rubrics: [...selectedRubricsList],
+            other_symptoms: otherSymptoms.join("\\n").slice(0, 5000),
+            thermal,
+            thirst,
+            ves_level: vesLevel,
+            candidate_remedies: materiaMedicaRepo
+          }
+        });
+        if (error || !data?.success || !Array.isArray(data.top_remedies)) {
+          let message = data?.error || error?.message || "AI repertorisation failed.";
+          if (data?.code === "SUBSCRIPTION_REQUIRED") {
+            basicSubscriptionActive = false;
+            openRechargeModal();
+          }
+          try {
+            const response = error?.context;
+            if (response && typeof response.clone === "function") {
+              const failure = await response.clone().json();
+              message = failure?.error || message;
+            }
+          } catch (_) {}
+          throw new Error(message);
+        }
 
-      document.getElementById("repertorySheetContainer").classList.remove("hidden");
+        currentDoctor.ai_tokens = Number(data.balance);
+        setText("headerTokenCount", currentDoctor.ai_tokens);
+        setText("walletModalTokens", currentDoctor.ai_tokens);
+        window.__classicaiPendingRepertorizationRequestId = "";
+        try { sessionStorage.removeItem(requestStorageKey); } catch (_) {}
+
+        const missing = Array.isArray(data.missing_questions) ? data.missing_questions : [];
+        const gnm = Array.isArray(data.gnm_observations) ? data.gnm_observations : [];
+        const qBox = document.getElementById("aiSuggestedQuestionsBox");
+        const qList = document.getElementById("aiQuestionsList");
+        if (qList) {
+          qList.textContent = [
+            data.summary || "AI analysis completed.",
+            ...missing.map(q => "Question: " + q),
+            ...gnm.map(note => "GNM (separate hypothesis): " + note)
+          ].join("\\n");
+        }
+        qBox?.classList.remove("hidden");
+
+        latestTop5Remedies = data.top_remedies.slice(0, 5).map(r => ({
+          name: String(r.name || ""),
+          finalScore: Number(r.score) || 0,
+          coveredSymptoms: Array.isArray(r.matching_evidence) ? r.matching_evidence : [],
+          contradictions: Array.isArray(r.contradictions) ? r.contradictions : [],
+          shortNote: String(r.materia_medica_comparison || ""),
+          vesInterpretation: String(r.ves_interpretation || "")
+        })).filter(r => r.name);
+        if (!latestTop5Remedies.length) throw new Error("AI returned no valid remedy candidates.");
+
+        const container = document.getElementById("repertoryCardsList");
+        if (!container) throw new Error("Repertorisation result area is unavailable.");
+        container.replaceChildren();
+        latestTop5Remedies.forEach((remedy, index) => {
+          const card = document.createElement("article");
+          card.className = "bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2.5 shadow-sm";
+          const heading = document.createElement("div");
+          heading.className = "flex justify-between items-start gap-2";
+          const titleWrap = document.createElement("div");
+          const title = document.createElement("h4");
+          title.className = "font-extrabold text-sm text-teal-950";
+          title.textContent = (index + 1) + ". " + remedy.name;
+          const score = document.createElement("p");
+          score.className = "text-[10px] text-slate-600 mt-1";
+          score.textContent = "Comparative AI score: " + remedy.finalScore + "/100 (not a probability)";
+          titleWrap.append(title, score);
+          const pick = document.createElement("button");
+          pick.type = "button";
+          pick.className = "bg-teal-600 hover:bg-teal-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]";
+          pick.textContent = "Pick for Rx";
+          pick.addEventListener("click", () => pickRemedyForPrescription(remedy.name));
+          heading.append(titleWrap, pick);
+          card.append(heading);
+
+          const addSection = (label, textValue, className) => {
+            if (!textValue) return;
+            const section = document.createElement("div");
+            section.className = "bg-white p-2.5 rounded-xl border border-slate-200";
+            const labelNode = document.createElement("strong");
+            labelNode.className = "block text-[10px] text-slate-700 mb-1";
+            labelNode.textContent = label;
+            const body = document.createElement("p");
+            body.className = className || "text-[10px] text-slate-700 whitespace-pre-wrap";
+            body.textContent = textValue;
+            section.append(labelNode, body);
+            card.append(section);
+          };
+          addSection("Materia Medica comparison", remedy.shortNote);
+          addSection("VES interpretation (separate layer)", remedy.vesInterpretation);
+          addSection("Matching evidence", remedy.coveredSymptoms.join(" • "));
+          addSection("Contradictions / missing fit", remedy.contradictions.join(" • "), "text-[10px] text-amber-900 whitespace-pre-wrap");
+          container.append(card);
+        });
+
+        const warnings = Array.isArray(data.limitations) ? data.limitations : [];
+        const disclaimer = document.createElement("div");
+        disclaimer.className = "rounded-lg border border-amber-200 bg-amber-50 p-2 text-[10px] leading-relaxed text-amber-950";
+        disclaimer.textContent = "AI decision-support only. Comparative scores are not probabilities or treatment recommendations. " +
+          (data.dataset_scope || "Candidate scope: current mobile remedy catalogue.") +
+          (warnings.length ? " Limitations: " + warnings.join(" ") : "");
+        container.prepend(disclaimer);
+        const gnmNotice = document.createElement("p");
+        gnmNotice.className = "text-[10px] text-purple-900 bg-purple-50 border border-purple-200 rounded-lg p-2";
+        gnmNotice.textContent = "GNM is shown as a separate hypothesis layer and does not increase remedy scores or establish disease causation.";
+        container.insertBefore(gnmNotice, disclaimer.nextSibling);
+
+        const topRemedy = latestTop5Remedies[0]?.name;
+        if (topRemedy && typeof generateAIDietRestrictions === "function") {
+          document.getElementById("rxParhez").value = generateAIDietRestrictions(topRemedy, diagnosis);
+        }
+        document.getElementById("repertorySheetContainer")?.classList.remove("hidden");
       } catch (error) {
-        console.error("ClassicAI repertorization failed:", error);
-        alert("Repertorization could not finish: " + (error?.message || "Unexpected error") + ". If the connection was interrupted, retry the same action; ClassicAI reuses the pending request ID to prevent a duplicate token deduction.");
+        console.error("ClassicAI AI repertorisation failed:", error);
+        alert("AI repertorisation could not finish: " + (error?.message || "Unexpected error") +
+          ". No token is deducted unless the server completes a valid analysis. Retry to safely reuse the same request ID.");
       } finally {
         window.__classicaiRepertorizationRunning = false;
-        if (actionButton) {
-          actionButton.disabled = false;
-          actionButton.innerHTML = actionButton.dataset.originalLabel || '<i class="fa-solid fa-brain text-sm"></i> Run Repertorization & Generate Totality Matrix';
-          delete actionButton.dataset.originalLabel;
+        if (button) {
+          button.disabled = false;
+          button.innerHTML = button.dataset.originalLabel || '<i class="fa-solid fa-brain text-sm"></i> Run Repertorization & Generate Totality Matrix';
+          delete button.dataset.originalLabel;
         }
       }
     }
