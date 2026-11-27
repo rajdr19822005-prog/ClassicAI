@@ -461,14 +461,33 @@
         ? window.getClassicAIApprovedNoteTerms() : [];
       otherSymptoms = otherSymptoms.concat(approvedTerms);
       const requestStorageKey = "classicai_repertorization_request_" + String(currentDoctor.id);
+      const requestFingerprintKey = requestStorageKey + "_fingerprint";
+      const requestPayload = JSON.stringify({
+        diagnosis, age: document.getElementById("pAge")?.value || "",
+        gender: document.getElementById("pGender")?.value || "",
+        symptoms: otherSymptoms, thermal, thirst, vesLevel
+      });
+      let requestFingerprint = "";
+      try {
+        const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(requestPayload));
+        requestFingerprint = Array.from(new Uint8Array(digest)).map(x => x.toString(16).padStart(2, "0")).join("");
+      } catch (_) {}
       let requestId = "";
-      try { requestId = sessionStorage.getItem(requestStorageKey) || ""; } catch (_) {}
+      let storedFingerprint = "";
+      try {
+        requestId = sessionStorage.getItem(requestStorageKey) || "";
+        storedFingerprint = sessionStorage.getItem(requestFingerprintKey) || "";
+      } catch (_) {}
+      if (requestFingerprint && storedFingerprint !== requestFingerprint) requestId = "";
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
         requestId = window.__classicaiPendingRepertorizationRequestId || "";
       }
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) requestId = crypto.randomUUID();
       window.__classicaiPendingRepertorizationRequestId = requestId;
-      try { sessionStorage.setItem(requestStorageKey, requestId); } catch (_) {}
+      try {
+        sessionStorage.setItem(requestStorageKey, requestId);
+        if (requestFingerprint) sessionStorage.setItem(requestFingerprintKey, requestFingerprint);
+      } catch (_) {}
 
       const button = document.querySelector('[onclick="executeAIRepertorization()"]');
       window.__classicaiRepertorizationRunning = true;
@@ -511,7 +530,7 @@
         setText("headerTokenCount", currentDoctor.ai_tokens);
         setText("walletModalTokens", currentDoctor.ai_tokens);
         window.__classicaiPendingRepertorizationRequestId = "";
-        try { sessionStorage.removeItem(requestStorageKey); } catch (_) {}
+        try { sessionStorage.removeItem(requestStorageKey); sessionStorage.removeItem(requestFingerprintKey); } catch (_) {}
 
         const missing = Array.isArray(data.missing_questions) ? data.missing_questions : [];
         const gnm = Array.isArray(data.gnm_observations) ? data.gnm_observations : [];
